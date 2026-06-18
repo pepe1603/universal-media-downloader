@@ -6,6 +6,12 @@ CLI multiplataforma para descargar contenido multimedia.
 
 import sys
 from pathlib import Path
+
+# Agregar directorio raíz al path para permitir imports absolutos
+root_dir = Path(__file__).parent.parent
+if str(root_dir) not in sys.path:
+    sys.path.insert(0, str(root_dir))
+
 from typing import Optional
 
 from rich.console import Console
@@ -14,6 +20,8 @@ from rich.prompt import Prompt, IntPrompt
 from rich.table import Table
 from rich import box
 import typer
+
+from src.platforms.detector import PlatformDetector, Platform
 
 # Crear aplicación Typer
 app = typer.Typer(help="Universal Media Downloader - Descarga contenido multimedia de múltiples plataformas")
@@ -119,11 +127,11 @@ class UniversalDownloader:
             self.console.print("[yellow]⚠ URL no válida[/yellow]")
             return
         
-        # Detectar plataforma (por implementar)
-        platform = self._detect_platform(url)
+        # Detectar plataforma usando el módulo
+        platform_info = PlatformDetector.detect(url)
         
-        if platform:
-            self.console.print(f"[green]✓[/green] Plataforma detectada: [bold]{platform}[/bold]")
+        if platform_info.valid:
+            self.console.print(f"[green]✓[/green] {platform_info.message}")
             
             # Seleccionar calidad
             self.console.print("\n[bold]Seleccione calidad:[/bold]")
@@ -144,30 +152,16 @@ class UniversalDownloader:
                 default="2"
             )
             
-            if choice == "4":
+            if choice == 4:
                 return
             
             # Aquí irá la lógica de descarga
             self.console.print(f"\n[yellow]⚠ Funcionalidad en desarrollo[/yellow]")
             self.console.print(f"[dim]URL: {url}[/dim]")
+            self.console.print(f"[dim]Plataforma: {platform_info.name}[/dim]")
             self.console.print(f"[dim]Calidad: {choice}[/dim]")
         else:
-            self.console.print("[red]✗[/red] Plataforma no soportada")
-    
-    def _detect_platform(self, url: str) -> Optional[str]:
-        """Detectar plataforma desde la URL."""
-        url_lower = url.lower()
-        
-        if "youtube.com" in url_lower or "youtu.be" in url_lower:
-            return "YouTube"
-        elif "facebook.com" in url_lower or "fb.watch" in url_lower:
-            return "Facebook"
-        elif "instagram.com" in url_lower:
-            return "Instagram"
-        elif "tiktok.com" in url_lower:
-            return "TikTok"
-        
-        return None
+            self.console.print(f"[red]✗[/red] {platform_info.message}")
     
     def view_downloads(self):
         """Ver historial de descargas."""
