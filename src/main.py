@@ -22,6 +22,8 @@ from rich import box
 import typer
 
 from src.platforms.detector import PlatformDetector, Platform
+from src.core.downloader import MediaDownloader, Quality
+from src.core.dependencies import DependencyChecker
 
 # Crear aplicación Typer
 app = typer.Typer(help="Universal Media Downloader - Descarga contenido multimedia de múltiples plataformas")
@@ -59,6 +61,7 @@ class UniversalDownloader:
     def __init__(self):
         self.console = Console()
         self.device_config: Optional[DeviceConfig] = None
+        self.downloader = MediaDownloader(self.console)
         self.username = "Usuario"
         self.running = True
     
@@ -155,11 +158,36 @@ class UniversalDownloader:
             if choice == 4:
                 return
             
-            # Aquí irá la lógica de descarga
-            self.console.print(f"\n[yellow]⚠ Funcionalidad en desarrollo[/yellow]")
-            self.console.print(f"[dim]URL: {url}[/dim]")
-            self.console.print(f"[dim]Plataforma: {platform_info.name}[/dim]")
-            self.console.print(f"[dim]Calidad: {choice}[/dim]")
+            # Mapear elección a calidad
+            quality_map = {
+                1: Quality.MAXIMUM,
+                2: Quality.RECOMMENDED,
+                3: Quality.AUDIO
+            }
+            
+            quality = quality_map.get(choice, Quality.RECOMMENDED)
+            
+            # Realizar descarga
+            self.console.print(f"\n[cyan]Iniciando descarga...[/cyan]")
+            result = self.downloader.download(
+                url=url,
+                quality=quality,
+                output_path=self.device_config.base_path,
+                platform=platform_info.name
+            )
+            
+            if result.success:
+                self.console.print(f"\n[green]✓ Descarga completada exitosamente[/green]")
+                self.console.print(f"[dim]Título: {result.title}[/dim]")
+                self.console.print(f"[dim]Ubicación: {result.file_path}[/dim]")
+                if result.duration:
+                    minutes = result.duration // 60
+                    seconds = result.duration % 60
+                    self.console.print(f"[dim]Duración: {minutes}:{seconds:02d}[/dim]")
+            else:
+                self.console.print(f"\n[red]✗ Error en la descarga[/red]")
+                self.console.print(f"[red]{result.error_message}[/red]")
+        
         else:
             self.console.print(f"[red]✗[/red] {platform_info.message}")
     
@@ -189,7 +217,11 @@ class UniversalDownloader:
     def settings(self):
         """Configuración."""
         self.console.print("\n[bold cyan]═══ CONFIGURACIÓN ═══[/bold cyan]\n")
-        self.console.print("[yellow]⚠ Funcionalidad en desarrollo[/yellow]")
+        
+        # Mostrar estado de dependencias
+        DependencyChecker.show_status(self.console)
+        
+        self.console.print("[yellow]⚠ Más opciones en desarrollo[/yellow]")
     
     def run(self):
         """Ejecutar aplicación principal."""
