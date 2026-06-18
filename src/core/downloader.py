@@ -28,7 +28,10 @@ class DownloadResult:
     success: bool
     file_path: Optional[Path] = None
     title: Optional[str] = None
+    artist: Optional[str] = None
     duration: Optional[int] = None
+    upload_date: Optional[str] = None
+    thumbnail_path: Optional[Path] = None
     error_message: Optional[str] = None
 
 
@@ -57,61 +60,87 @@ class MediaDownloader:
         
         return True
     
-    def _get_ydl_opts(self, quality: Quality, output_path: Path) -> dict:
+    def _get_ydl_opts(
+        self,
+        quality: Quality,
+        output_path: Path,
+        download_thumbnail: bool = False
+    ) -> dict:
         """
         Obtener opciones de yt-dlp según la calidad.
         
         Args:
             quality: Calidad de descarga
             output_path: Ruta de salida
+            download_thumbnail: Si debe descargar la miniatura
             
         Returns:
             Diccionario con opciones de yt-dlp
         """
         output_template = str(output_path / "%(title)s.%(ext)s")
         
+        opts = {
+            'outtmpl': output_template,
+            'quiet': True,
+            'no_warnings': True,
+        }
+        
+        # Descargar miniatura si se solicita
+        if download_thumbnail:
+            opts['writethumbnail'] = True
+            # Convertir miniatura a JPG para compatibilidad con metadatos ID3
+            opts['postprocessors'] = opts.get('postprocessors', [])
+            opts['postprocessors'].append({
+                'key': 'ModifyChapters',
+                'remove_chapters_patterns': [],
+            })
+            # Agregar postprocessor para convertir thumbnails
+            if 'postprocessors' not in opts:
+                opts['postprocessors'] = []
+            opts['postprocessors'].append({
+                'key': 'FFmpegThumbnailsConvertor',
+                'format': 'jpg',
+                'when': 'before_dl',
+            })
+        
         if quality == Quality.MAXIMUM:
-            # Máxima calidad disponible
-            return {
+            opts.update({
                 'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-                'outtmpl': output_template,
                 'merge_output_format': 'mp4',
-                'quiet': True,
-                'no_warnings': True,
-            }
+            })
         
         elif quality == Quality.RECOMMENDED:
-            # Calidad recomendada (720p)
-            return {
+            opts.update({
                 'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best',
-                'outtmpl': output_template,
                 'merge_output_format': 'mp4',
-                'quiet': True,
-                'no_warnings': True,
-            }
+            })
         
         elif quality == Quality.AUDIO:
-            # Solo audio (MP3)
-            return {
-                'format': 'bestaudio/best',
-                'outtmpl': output_template,
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
-                }],
-                'quiet': True,
-                'no_warnings': True,
-            }
+            audio_pp = [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }]
+            
+            # Si también queremos miniatura, agregar conversión antes
+            if download_thumbnail:
+                opts['postprocessors'] = [{
+                    'key': 'FFmpegThumbnailsConvertor',
+                    'format': 'jpg',
+                    'when': 'before_dl',
+                }] + audio_pp
+            else:
+                opts['postprocessors'] = audio_pp
         
-        return {}
+        return opts
     
     def download(
         self,
         url: str,
         quality: Quality,
         output_path: Path,
-        platform: str
+        platform: str,
+        download_thumbnail: bool = False
     ) -> DownloadResult:
         """
         Descargar contenido desde una URL.
@@ -121,6 +150,7 @@ class MediaDownloader:
             quality: Calidad de descarga
             output_path: Ruta base de salida
             platform: Nombre de la plataforma
+            download_thumbnail: Si debe descargar la miniatura
             
         Returns:
             DownloadResult con el resultado de la descarga
@@ -138,7 +168,7 @@ class MediaDownloader:
             platform_path.mkdir(parents=True, exist_ok=True)
             
             # Obtener opciones de yt-dlp
-            ydl_opts = self._get_ydl_opts(quality, platform_path)
+            ydl_opts = self._get_ydl_opts(quality, platform_path, download_thumbnail)
             
             # Descargar con barra de progreso
             with Progress(
@@ -157,13 +187,36 @@ class MediaDownloader:
                     if info:
                         title = info.get('title', 'Sin título')
                         duration = info.get('duration', 0)
+                        artist = info.get('uploader', info.get('channel', 'Desconocido'))
+                        upload_date = info.get('upload_date', '')
                         
-                        # Construir ruta del archivo descargado
+                        # Formatear fecha
+                        formatted_date = ""
+                        if upload_date and len(upload_date) >= 8:
+                            formatted_date = f"{upload_date[:4]}-{upload_date[4:6]}-{upload_date[6:8]}"
+                        
+                        # Obtener la ruta real del archivo descargado
                         ext = 'mp3' if quality == Quality.AUDIO else 'mp4'
-                        filename = f"{title}.{ext}"
-                        # Limpiar nombre de archivo
-                        filename = "".join(c for c in filename if c.isalnum() or c in (' ', '-', '_', '.'))
-                        file_path = platform_path / filename
+                        filename = ydl.prepare_filename(info)
+                        
+                        # Si es audio, cambiar la extensión a mp3
+                        if quality == Quality.AUDIO:
+                            filename = Path(filename).with_suffix('.mp3')
+                        else:
+                            filename = Path(filename)
+                        
+                        file_path = filename
+                        
+                        # Buscar miniatura descargada (ahora en JPG)
+                        thumbnail_path = None
+                        if download_thumbnail:
+                            stem = file_path.stem
+                            # Buscar primero JPG (el que convertimos)
+                            for thumb_ext in ['.jpg', '.jpeg', '.png', '.webp']:
+                                potential_thumb = platform_path / f"{stem}{thumb_ext}"
+                                if potential_thumb.exists():
+                                    thumbnail_path = potential_thumb
+                                    break
                         
                         progress.update(task, completed=100, description="[green]✓ Descarga completada")
                         
@@ -171,7 +224,10 @@ class MediaDownloader:
                             success=True,
                             file_path=file_path,
                             title=title,
-                            duration=duration
+                            artist=artist,
+                            duration=duration,
+                            upload_date=formatted_date,
+                            thumbnail_path=thumbnail_path
                         )
             
             return DownloadResult(

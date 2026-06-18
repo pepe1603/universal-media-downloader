@@ -24,6 +24,8 @@ import typer
 from src.platforms.detector import PlatformDetector, Platform
 from src.core.downloader import MediaDownloader, Quality
 from src.core.dependencies import DependencyChecker
+from src.core.converter import AudioConverter, AudioFormat
+from src.core.metadata import MetadataHandler, AudioMetadata
 
 # Crear aplicación Typer
 app = typer.Typer(help="Universal Media Downloader - Descarga contenido multimedia de múltiples plataformas")
@@ -31,7 +33,7 @@ console = Console()
 
 # Constantes
 APP_NAME = "Universal Media Downloader"
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 
 class DeviceConfig:
@@ -62,6 +64,8 @@ class UniversalDownloader:
         self.console = Console()
         self.device_config: Optional[DeviceConfig] = None
         self.downloader = MediaDownloader(self.console)
+        self.converter = AudioConverter(self.console)
+        self.metadata_handler = MetadataHandler(self.console)
         self.username = "Usuario"
         self.running = True
     
@@ -142,8 +146,8 @@ class UniversalDownloader:
             table.add_column("Opción", style="cyan", justify="center")
             table.add_column("Calidad", style="white")
             
-            table.add_row("1", "Máxima disponible")
-            table.add_row("2", "Recomendada (720p)")
+            table.add_row("1", "Máxima disponible (Video)")
+            table.add_row("2", "Recomendada 720p (Video)")
             table.add_row("3", "Convertir a audio")
             table.add_row("4", "Regresar")
             
@@ -167,29 +171,126 @@ class UniversalDownloader:
             
             quality = quality_map.get(choice, Quality.RECOMMENDED)
             
+            # Si es audio, preguntar formato
+            audio_format = None
+            if choice == 3:
+                audio_format = self._select_audio_format()
+                if audio_format is None:
+                    return
+            
             # Realizar descarga
             self.console.print(f"\n[cyan]Iniciando descarga...[/cyan]")
+            
+            # Descargar miniatura si es audio
+            download_thumbnail = (choice == 3)
+            
             result = self.downloader.download(
                 url=url,
                 quality=quality,
                 output_path=self.device_config.base_path,
-                platform=platform_info.name
+                platform=platform_info.name,
+                download_thumbnail=download_thumbnail
             )
             
             if result.success:
                 self.console.print(f"\n[green]✓ Descarga completada exitosamente[/green]")
                 self.console.print(f"[dim]Título: {result.title}[/dim]")
+                self.console.print(f"[dim]Artista: {result.artist}[/dim]")
                 self.console.print(f"[dim]Ubicación: {result.file_path}[/dim]")
                 if result.duration:
                     minutes = result.duration // 60
                     seconds = result.duration % 60
                     self.console.print(f"[dim]Duración: {minutes}:{seconds:02d}[/dim]")
+                
+                # Si es audio, convertir al formato seleccionado y agregar metadatos
+                if choice == 3 and audio_format and result.file_path:
+                    self._process_audio_with_metadata(result, audio_format)
             else:
                 self.console.print(f"\n[red]✗ Error en la descarga[/red]")
                 self.console.print(f"[red]{result.error_message}[/red]")
         
         else:
             self.console.print(f"[red]✗[/red] {platform_info.message}")
+    
+    def _select_audio_format(self) -> Optional[AudioFormat]:
+        """Seleccionar formato de audio."""
+        self.console.print("\n[bold]Seleccione formato de audio:[/bold]")
+        
+        table = Table(box=box.SIMPLE)
+        table.add_column("Opción", style="cyan", justify="center")
+        table.add_column("Formato", style="white")
+        
+        formats = list(AudioFormat)
+        for i, fmt in enumerate(formats, 1):
+            table.add_row(str(i), fmt.description)
+        
+        table.add_row(str(len(formats) + 1), "Regresar")
+        
+        self.console.print(table)
+        
+        choice = IntPrompt.ask(
+            "\nSeleccione una opción",
+            choices=[str(i) for i in range(1, len(formats) + 2)],
+            default="1"
+        )
+        
+        if choice == len(formats) + 1:
+            return None
+        
+        return formats[choice - 1]
+    
+    def _process_audio_with_metadata(self, result, target_format: AudioFormat):
+        """Procesar audio: convertir formato e incrustar metadatos."""
+        self.console.print(f"\n[cyan]Procesando audio...[/cyan]")
+        
+        # Si el formato ya es MP3 (el que descarga yt-dlp), no necesitamos convertir
+        current_path = result.file_path
+        final_path = current_path
+        
+        if current_path.suffix.lower() != f".{target_format.value}":
+            # Convertir al formato seleccionado
+            self.console.print(f"[dim]Convirtiendo a {target_format.description}...[/dim]")
+            
+            conversion_result = self.converter.convert(
+                input_path=current_path,
+                output_format=target_format
+            )
+            
+            if conversion_result.success:
+                final_path = conversion_result.output_path
+                self.console.print(f"[green]✓[/green] Conversión completada")
+                
+                # Eliminar archivo temporal MP3 si es diferente
+                if current_path != final_path and current_path.exists():
+                    current_path.unlink()
+            else:
+                self.console.print(f"[red]✗ Error en conversión: {conversion_result.error_message}[/red]")
+                return
+        
+        # Incrustar metadatos
+        self.console.print(f"[dim]Incrustando metadatos y carátula...[/dim]")
+        
+        metadata = AudioMetadata(
+            title=result.title or "Sin título",
+            artist=result.artist or "Desconocido",
+            album="Single",
+            date=result.upload_date,
+            cover_path=result.thumbnail_path
+        )
+        
+        if self.metadata_handler.embed_metadata(final_path, metadata):
+            self.console.print(f"[green]✓[/green] Metadatos incrustados exitosamente")
+            self.console.print(f"[dim]Formato final: {final_path.name}[/dim]")
+            
+            # Eliminar miniatura temporal después de incrustarla
+            if result.thumbnail_path and result.thumbnail_path.exists():
+                try:
+                    result.thumbnail_path.unlink()
+                    self.console.print(f"[dim]✓ Miniatura temporal eliminada[/dim]")
+                except Exception as e:
+                    self.console.print(f"[yellow]⚠ No se pudo eliminar miniatura: {e}[/yellow]")
+        else:
+            self.console.print(f"[yellow]⚠ No se pudieron incrustar metadatos[/yellow]")
     
     def view_downloads(self):
         """Ver historial de descargas."""
@@ -221,7 +322,16 @@ class UniversalDownloader:
         # Mostrar estado de dependencias
         DependencyChecker.show_status(self.console)
         
-        self.console.print("[yellow]⚠ Más opciones en desarrollo[/yellow]")
+        # Verificar mutagen
+        try:
+            import mutagen
+            self.console.print(f"[green]✓[/green] [bold]mutagen[/bold]")
+            self.console.print(f"  [dim]Versión: {mutagen.versionString}[/dim]")
+        except ImportError:
+            self.console.print(f"[red]✗[/red] [bold]mutagen[/bold]")
+            self.console.print(f"  [red]No está instalado. Ejecuta: pip install mutagen[/red]")
+        
+        self.console.print("\n[yellow]⚠ Más opciones en desarrollo[/yellow]")
     
     def run(self):
         """Ejecutar aplicación principal."""
@@ -275,4 +385,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
