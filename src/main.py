@@ -13,6 +13,7 @@ if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
 from typing import Optional
+from datetime import datetime
 
 from rich.console import Console
 from rich.panel import Panel
@@ -26,6 +27,8 @@ from src.core.downloader import MediaDownloader, Quality
 from src.core.dependencies import DependencyChecker
 from src.core.converter import AudioConverter, AudioFormat
 from src.core.metadata import MetadataHandler, AudioMetadata
+from src.core.exporter import HistoryExporter
+from src.storage.database import Database, DownloadRecord
 
 # Crear aplicación Typer
 app = typer.Typer(help="Universal Media Downloader - Descarga contenido multimedia de múltiples plataformas")
@@ -33,7 +36,7 @@ console = Console()
 
 # Constantes
 APP_NAME = "Universal Media Downloader"
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 
 class DeviceConfig:
@@ -63,18 +66,22 @@ class UniversalDownloader:
     def __init__(self):
         self.console = Console()
         self.device_config: Optional[DeviceConfig] = None
-        self.downloader = MediaDownloader(self.console)
+        self.database = Database()
+        self.downloader = MediaDownloader(self.console, self.database)
         self.converter = AudioConverter(self.console)
         self.metadata_handler = MetadataHandler(self.console)
+        self.exporter = HistoryExporter(self.console)
         self.username = "Usuario"
         self.running = True
     
     def show_banner(self):
         """Mostrar banner de la aplicación."""
+        total_downloads = self.database.get_total_downloads()
         banner = f"""
 [bold cyan]{APP_NAME}[/bold cyan]
 [green]Versión {VERSION}[/green]
 [dim]Usuario: {self.username} | Dispositivo: {self.device_config.device_type if self.device_config else 'No configurado'}[/dim]
+[dim]Total de descargas: {total_downloads}[/dim]
         """
         self.console.print(Panel(banner, box=box.DOUBLE_EDGE, expand=False))
     
@@ -116,7 +123,7 @@ class UniversalDownloader:
         
         table.add_row("1", "📥 Descargar contenido")
         table.add_row("2", "📋 Consultar descargas")
-        table.add_row("3", "📤 Exportar/Mover archivos")
+        table.add_row("3", "📤 Exportar historial")
         table.add_row("4", "📊 Resumen reciente")
         table.add_row("5", "👤 Cambiar usuario")
         table.add_row("6", "⚙️  Configuración")
@@ -201,6 +208,8 @@ class UniversalDownloader:
                     minutes = result.duration // 60
                     seconds = result.duration % 60
                     self.console.print(f"[dim]Duración: {minutes}:{seconds:02d}[/dim]")
+                if result.record_id:
+                    self.console.print(f"[dim]ID de registro: {result.record_id}[/dim]")
                 
                 # Si es audio, convertir al formato seleccionado y agregar metadatos
                 if choice == 3 and audio_format and result.file_path:
@@ -295,17 +304,219 @@ class UniversalDownloader:
     def view_downloads(self):
         """Ver historial de descargas."""
         self.console.print("\n[bold cyan]═══ CONSULTAR DESCARGAS ═══[/bold cyan]\n")
-        self.console.print("[yellow]⚠ Funcionalidad en desarrollo (Fase 3)[/yellow]")
+        
+        table = Table(box=box.SIMPLE)
+        table.add_column("Opción", style="cyan", justify="center")
+        table.add_column("Acción", style="white")
+        
+        table.add_row("1", "Ver últimas 20 descargas")
+        table.add_row("2", "Buscar por plataforma")
+        table.add_row("3", "Buscar por fecha")
+        table.add_row("4", "Buscar por nombre")
+        table.add_row("5", "Regresar")
+        
+        self.console.print(table)
+        
+        choice = IntPrompt.ask(
+            "\nSeleccione una opción",
+            choices=["1", "2", "3", "4", "5"],
+            default="1"
+        )
+        
+        if choice == 1:
+            self._show_recent_downloads()
+        elif choice == 2:
+            self._search_by_platform()
+        elif choice == 3:
+            self._search_by_date()
+        elif choice == 4:
+            self._search_by_name()
     
-    def export_files(self):
-        """Exportar o mover archivos."""
-        self.console.print("\n[bold cyan]═══ EXPORTAR/MOVER ARCHIVOS ═══[/bold cyan]\n")
-        self.console.print("[yellow]⚠ Funcionalidad en desarrollo[/yellow]")
+    def _show_recent_downloads(self, limit: int = 20):
+        """Mostrar descargas recientes."""
+        records = self.database.get_recent_downloads(limit)
+        
+        if not records:
+            self.console.print("[yellow]No hay descargas registradas[/yellow]")
+            return
+        
+        self._display_downloads_table(records)
+    
+    def _search_by_platform(self):
+        """Buscar descargas por plataforma."""
+        self.console.print("\n[bold]Plataformas disponibles:[/bold]")
+        platforms = ["YouTube", "Facebook", "Instagram", "TikTok"]
+        
+        for i, platform in enumerate(platforms, 1):
+            self.console.print(f"  {i}. {platform}")
+        
+        choice = IntPrompt.ask(
+            "\nSeleccione una plataforma",
+            choices=[str(i) for i in range(1, len(platforms) + 1)],
+            default="1"
+        )
+        
+        platform = platforms[choice - 1]
+        records = self.database.search_downloads(platform=platform)
+        
+        if not records:
+            self.console.print(f"[yellow]No hay descargas de {platform}[/yellow]")
+            return
+        
+        self._display_downloads_table(records)
+    
+    def _search_by_date(self):
+        """Buscar descargas por fecha."""
+        self.console.print("\n[bold]Búsqueda por fecha:[/bold]")
+        date_from = Prompt.ask("Desde (YYYY-MM-DD)", default="")
+        date_to = Prompt.ask("Hasta (YYYY-MM-DD)", default="")
+        
+        records = self.database.search_downloads(
+            date_from=date_from if date_from else None,
+            date_to=date_to if date_to else None
+        )
+        
+        if not records:
+            self.console.print("[yellow]No se encontraron descargas en ese rango de fechas[/yellow]")
+            return
+        
+        self._display_downloads_table(records)
+    
+    def _search_by_name(self):
+        """Buscar descargas por nombre."""
+        title = Prompt.ask("\nIngrese texto a buscar en el título")
+        
+        if not title:
+            return
+        
+        records = self.database.search_downloads(title_contains=title)
+        
+        if not records:
+            self.console.print(f"[yellow]No se encontraron descargas con '{title}'[/yellow]")
+            return
+        
+        self._display_downloads_table(records)
+    
+    def _display_downloads_table(self, records: list):
+        """Mostrar tabla de descargas."""
+        table = Table(box=box.ROUNDED)
+        table.add_column("ID", style="cyan", justify="center")
+        table.add_column("Fecha", style="green")
+        table.add_column("Plataforma", style="magenta")
+        table.add_column("Título", style="white", max_width=40)
+        table.add_column("Formato", style="yellow")
+        table.add_column("Duración", style="blue", justify="right")
+        
+        for record in records:
+            duration_str = self._format_duration(record.duration)
+            title_short = record.title[:40] + "..." if len(record.title) > 40 else record.title
+            
+            table.add_row(
+                str(record.id),
+                record.date,
+                record.platform,
+                title_short,
+                record.format,
+                duration_str
+            )
+        
+        self.console.print(f"\n[bold]Resultados ({len(records)} descargas):[/bold]\n")
+        self.console.print(table)
+    
+    def _format_duration(self, seconds: Optional[int]) -> str:
+        """Formatear duración."""
+        if seconds is None:
+            return "N/A"
+        minutes = seconds // 60
+        secs = seconds % 60
+        return f"{minutes}:{secs:02d}"
+    
+    def export_history(self):
+        """Exportar historial de descargas."""
+        self.console.print("\n[bold cyan]═══ EXPORTAR HISTORIAL ═══[/bold cyan]\n")
+        
+        # Obtener todas las descargas
+        records = self.database.get_recent_downloads(1000)
+        
+        if not records:
+            self.console.print("[yellow]No hay descargas para exportar[/yellow]")
+            return
+        
+        self.console.print(f"[dim]Total de descargas: {len(records)}[/dim]\n")
+        
+        table = Table(box=box.SIMPLE)
+        table.add_column("Opción", style="cyan", justify="center")
+        table.add_column("Formato", style="white")
+        
+        table.add_row("1", "TXT (Texto plano)")
+        table.add_row("2", "Markdown (MD)")
+        table.add_row("3", "JSON (Datos estructurados)")
+        table.add_row("4", "Regresar")
+        
+        self.console.print(table)
+        
+        choice = IntPrompt.ask(
+            "\nSeleccione un formato",
+            choices=["1", "2", "3", "4"],
+            default="1"
+        )
+        
+        if choice == 4:
+            return
+        
+        # Crear directorio de exportación
+        export_dir = self.device_config.base_path / "exports"
+        export_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generar nombre de archivo con fecha
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        if choice == 1:
+            output_path = export_dir / f"historial_{timestamp}.txt"
+            success = self.exporter.export_to_txt(records, output_path)
+        elif choice == 2:
+            output_path = export_dir / f"historial_{timestamp}.md"
+            success = self.exporter.export_to_markdown(records, output_path)
+        elif choice == 3:
+            output_path = export_dir / f"historial_{timestamp}.json"
+            success = self.exporter.export_to_json(records, output_path)
+        
+        if success:
+            self.console.print(f"\n[green]✓ Historial exportado exitosamente[/green]")
+            self.console.print(f"[dim]Ubicación: {output_path}[/dim]")
+        else:
+            self.console.print(f"\n[red]✗ Error al exportar el historial[/red]")
     
     def recent_summary(self):
         """Mostrar resumen reciente."""
         self.console.print("\n[bold cyan]═══ RESUMEN RECIENTE ═══[/bold cyan]\n")
-        self.console.print("[yellow]⚠ Funcionalidad en desarrollo (Fase 3)[/yellow]")
+        
+        # Obtener estadísticas
+        total = self.database.get_total_downloads()
+        by_platform = self.database.get_downloads_by_platform()
+        recent = self.database.get_recent_downloads(5)
+        
+        # Mostrar estadísticas generales
+        self.console.print(f"[bold]Total de descargas:[/bold] {total}\n")
+        
+        if by_platform:
+            self.console.print("[bold]Descargas por plataforma:[/bold]")
+            table = Table(box=box.SIMPLE)
+            table.add_column("Plataforma", style="cyan")
+            table.add_column("Cantidad", style="green", justify="right")
+            
+            for platform, count in by_platform.items():
+                table.add_row(platform, str(count))
+            
+            self.console.print(table)
+            self.console.print()
+        
+        # Mostrar últimas 5 descargas
+        if recent:
+            self.console.print("[bold]Últimas 5 descargas:[/bold]")
+            self._display_downloads_table(recent)
+        else:
+            self.console.print("[yellow]No hay descargas recientes[/yellow]")
     
     def change_user(self):
         """Cambiar usuario."""
@@ -331,6 +542,11 @@ class UniversalDownloader:
             self.console.print(f"[red]✗[/red] [bold]mutagen[/bold]")
             self.console.print(f"  [red]No está instalado. Ejecuta: pip install mutagen[/red]")
         
+        # Mostrar información de la base de datos
+        self.console.print(f"\n[bold]Base de datos:[/bold]")
+        self.console.print(f"  [dim]Ubicación: {self.database.db_path}[/dim]")
+        self.console.print(f"  [dim]Total de registros: {self.database.get_total_downloads()}[/dim]")
+        
         self.console.print("\n[yellow]⚠ Más opciones en desarrollo[/yellow]")
     
     def run(self):
@@ -354,7 +570,7 @@ class UniversalDownloader:
             elif choice == "2":
                 self.view_downloads()
             elif choice == "3":
-                self.export_files()
+                self.export_history()
             elif choice == "4":
                 self.recent_summary()
             elif choice == "5":

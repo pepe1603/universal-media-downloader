@@ -7,12 +7,14 @@ from pathlib import Path
 from typing import Optional
 from dataclasses import dataclass
 from enum import Enum
+from datetime import datetime
 
 import yt_dlp
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 
 from src.core.dependencies import DependencyChecker
+from src.storage.database import Database, DownloadRecord, DownloadStatus
 
 
 class Quality(Enum):
@@ -33,13 +35,15 @@ class DownloadResult:
     upload_date: Optional[str] = None
     thumbnail_path: Optional[Path] = None
     error_message: Optional[str] = None
+    record_id: Optional[int] = None
 
 
 class MediaDownloader:
     """Descargador de contenido multimedia usando yt-dlp."""
     
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(self, console: Optional[Console] = None, database: Optional[Database] = None):
         self.console = console or Console()
+        self.database = database or Database()
     
     def _check_dependencies(self) -> bool:
         """
@@ -88,20 +92,6 @@ class MediaDownloader:
         # Descargar miniatura si se solicita
         if download_thumbnail:
             opts['writethumbnail'] = True
-            # Convertir miniatura a JPG para compatibilidad con metadatos ID3
-            opts['postprocessors'] = opts.get('postprocessors', [])
-            opts['postprocessors'].append({
-                'key': 'ModifyChapters',
-                'remove_chapters_patterns': [],
-            })
-            # Agregar postprocessor para convertir thumbnails
-            if 'postprocessors' not in opts:
-                opts['postprocessors'] = []
-            opts['postprocessors'].append({
-                'key': 'FFmpegThumbnailsConvertor',
-                'format': 'jpg',
-                'when': 'before_dl',
-            })
         
         if quality == Quality.MAXIMUM:
             opts.update({
@@ -116,21 +106,14 @@ class MediaDownloader:
             })
         
         elif quality == Quality.AUDIO:
-            audio_pp = [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }]
-            
-            # Si también queremos miniatura, agregar conversión antes
-            if download_thumbnail:
-                opts['postprocessors'] = [{
-                    'key': 'FFmpegThumbnailsConvertor',
-                    'format': 'jpg',
-                    'when': 'before_dl',
-                }] + audio_pp
-            else:
-                opts['postprocessors'] = audio_pp
+            opts.update({
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+            })
         
         return opts
     
@@ -207,18 +190,35 @@ class MediaDownloader:
                         
                         file_path = filename
                         
-                        # Buscar miniatura descargada (ahora en JPG)
+                        # Buscar miniatura descargada
                         thumbnail_path = None
                         if download_thumbnail:
                             stem = file_path.stem
-                            # Buscar primero JPG (el que convertimos)
-                            for thumb_ext in ['.jpg', '.jpeg', '.png', '.webp']:
+                            thumb_extensions = ['.jpg', '.jpeg', '.png', '.webp']
+                            for thumb_ext in thumb_extensions:
                                 potential_thumb = platform_path / f"{stem}{thumb_ext}"
                                 if potential_thumb.exists():
                                     thumbnail_path = potential_thumb
                                     break
                         
                         progress.update(task, completed=100, description="[green]✓ Descarga completada")
+                        
+                        # Guardar en base de datos
+                        record = DownloadRecord(
+                            id=None,
+                            date=datetime.now().strftime('%Y-%m-%d'),
+                            platform=platform,
+                            title=title,
+                            url=url,
+                            format=ext,
+                            file_path=str(file_path),
+                            duration=duration,
+                            status=DownloadStatus.SUCCESS.value,
+                            artist=artist,
+                            quality=quality.value
+                        )
+                        
+                        record_id = self.database.add_download(record)
                         
                         return DownloadResult(
                             success=True,
@@ -227,7 +227,8 @@ class MediaDownloader:
                             artist=artist,
                             duration=duration,
                             upload_date=formatted_date,
-                            thumbnail_path=thumbnail_path
+                            thumbnail_path=thumbnail_path,
+                            record_id=record_id
                         )
             
             return DownloadResult(
@@ -236,6 +237,21 @@ class MediaDownloader:
             )
         
         except yt_dlp.utils.DownloadError as e:
+            # Registrar descarga fallida
+            record = DownloadRecord(
+                id=None,
+                date=datetime.now().strftime('%Y-%m-%d'),
+                platform=platform,
+                title="Error",
+                url=url,
+                format="N/A",
+                file_path="N/A",
+                duration=0,
+                status=DownloadStatus.FAILED.value,
+                error_message=str(e)
+            )
+            self.database.add_download(record)
+            
             return DownloadResult(
                 success=False,
                 error_message=f"Error de descarga: {str(e)}"
