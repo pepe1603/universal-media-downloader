@@ -4,7 +4,7 @@ CLI multiplataforma para descargar contenido multimedia desde múltiples platafo
 
 ## Estado Actual
 
-✅ **Fase 2 Completada** - Conversión de audio con carátulas y metadatos
+✅ **Fase 4 Completada** - Soporte completo para Termux (Android)
 
 ## Plataformas soportadas
 
@@ -15,7 +15,7 @@ CLI multiplataforma para descargar contenido multimedia desde múltiples platafo
 
 ## Características
 
-### Implementadas (Fase 1 y 2)
+### Implementadas (Fases 1, 2, 3 y 4)
 - ✅ Descarga de video en máxima calidad disponible
 - ✅ Descarga en calidad recomendada (720p)
 - ✅ Detección automática de plataforma desde URL
@@ -23,11 +23,15 @@ CLI multiplataforma para descargar contenido multimedia desde múltiples platafo
 - ✅ Conversión de audio a múltiples formatos (MP3, M4A, FLAC, OGG, WAV)
 - ✅ Incrustación de carátulas desde miniaturas
 - ✅ Metadatos ID3 (título, artista, álbum, fecha)
+- ✅ Historial de descargas con SQLite
+- ✅ Búsqueda por plataforma, fecha y nombre
+- ✅ Exportación de historial (TXT, Markdown, JSON)
+- ✅ Resumen estadístico de descargas
+- ✅ **Detección automática de entorno (Termux/Windows/Linux/macOS)**
+- ✅ **Organización de archivos en Android (Descargas/Música/Videos)**
+- ✅ **Verificación de permisos de almacenamiento en Termux**
 - ✅ Interfaz CLI profesional con Rich
-- ✅ Soporte multiplataforma (Windows, Linux, macOS)
-
-### En desarrollo
-- 🔄 Compatibilidad con Termux (Android)
+- ✅ Soporte multiplataforma completo
 
 ## Requisitos
 
@@ -36,6 +40,8 @@ CLI multiplataforma para descargar contenido multimedia desde múltiples platafo
 - Conexión a internet
 
 ## Instalación
+
+### Windows / Linux / macOS
 
 1. Clonar repositorio:
 
@@ -52,6 +58,7 @@ python -m venv venv
 ```
 
 3. Activar entorno virtual:
+
 - Windows (Git Bash): source venv/Scripts/activate
 - Linux/macOS: source venv/bin/activate
 
@@ -63,9 +70,56 @@ pip install -r requirements.txt
 
 5. Importante: Asegúrate de tener FFmpeg instalado:
 
-- Windows: winget install FFmpeg
-- Linux: sudo apt install ffmpeg
-- macOS: brew install ffmpeg
+- Windows: ```winget install FFmpeg```
+- Linux: ```sudo apt install ffmpeg```
+- macOS: ```brew install ffmpeg```
+
+### Android (Termux)
+
+1. Instalar Termux desde F-Droid (recomendado):
+
+    - https://f-droid.org/packages/com.termux/
+
+2. Actualizar paquetes:
+
+```bash
+    pkg update && pkg upgrade
+```
+
+3. Instalar dependencias
+
+```bash
+    pkg install python ffmpeg git
+```
+
+4. Configurar almacenamiento:
+
+```bash
+    termux-setup-storage
+```
+(Acepta los permisos cuando se soliciten)
+
+5. Clonar repositorio:
+
+```bash
+    cd ~
+    git clone https://github.com/pepe1603/universal-media-downloader.git
+    cd universal-media-downloader
+```
+
+6. Crear entorno virtual e Instalar dependencias: 
+
+```bash
+    python -m venv venv
+    source venv/bin/activate
+    pip install -r requirements.txt
+```
+
+7. Mantener Termux despierto (opcional pero recomendado):
+
+```bash
+    termux-wake-lock
+```
 
 ## Uso
 
@@ -73,13 +127,25 @@ pip install -r requirements.txt
 python src/main.py 
 ```
 
-# Menú principal
+La aplicación detecta automáticamente si estás en Termux o computadora y ajusta las rutas y opciones disponibles.
+
+
+# Menú principal (Computadora)
     1. Descargar contenido - Descarga videos o audio desde URLs
     2. Consultar descargas - Busca en el historial de descargas
     3. Exportar historial - Exporta a TXT, Markdown o JSON
     4. Resumen reciente - Estadísticas y últimas descargas
     5. Cambiar usuario - Cambia el nombre de usuario
     6. Configuración - Verifica dependencias y base de datos
+
+# Menu principal (Movil/Termux)
+    1. Descargar contenido - Descarga videos o audio desde URLs
+    2. Consultar descargas - Busca en el historial de descargas
+    3. Exportar historial - Exporta a TXT, Markdown o JSON
+    4. Resumen reciente - Estadísticas y últimas descargas
+    5. 📁 Organizar archivos - Mueve archivos a Descargas/Música/Videos
+    6. Cambiar usuario - Cambia el nombre de usuario
+    7. Configuración - Verifica dependencias y entorno
 
 # Ejemplo de descarga de video
 
@@ -128,7 +194,21 @@ El sistema automáticamente:
     - Markdown: Formato con encabezados y listas
     - JSON: Datos estructurados para procesamiento
 
+
+## Rutas de almacenamiento
+
 Los archivos se guardan en:
+
+#### Computadora
+    - Windows: C:\Users\TU_USUARIO\UniversalDownloader\
+    - Linux/macOS: ~/UniversalDownloader/
+
+#### Android (Termux)
+    - Descargas: /storage/emulated/0/Download/UniversalDownloader/
+    - Música: /storage/emulated/0/Music/UniversalDownloader/
+    - Videos: /storage/emulated/0/Movies/UniversalDownloader/
+
+#### En General
 
 - Windows: C:\Users\TU_USUARIO\UniversalDownloader\exports\[plataforma]\
 - Linux/macOS: ~/UniversalDownloader/exports/[plataforma]\
@@ -168,12 +248,14 @@ Los archivos se guardan en:
 - Búsqueda en historial (TXT, MD, JSON)
 - Resumen estadístico
 
-### Fase 4  (Próxima)
+### Fase 4 ✅ (Completada)
+- Detección automática de entorno (Termux/Windows/Linux/macOS)
+- Rutas optimizadas para Android
+- Verificación de permisos de almacenamiento
+- Organización de archivos en móvil
+- Instrucciones específicas para Termux
 
-- Soporte completo para Termux (Android)
-- Optimización de rutas para móvil
-
-### Fase 5
+### Fase 5 (Próxima)
 
 - API REST con FastAPI
 - Cliente Web o Android
@@ -189,7 +271,9 @@ universal-media-downloader/
 │   │   ├── converter.py     # Conversión de audio con FFmpeg
 │   │   ├── metadata.py      # Incrustación de metadatos y carátulas
 │   │   ├── exporter.py      # Exportación de historial
-│   │   └── dependencies.py  # Verificación de dependencias
+│   │   |── dependencies.py  # Verificación de dependencias
+│   │   ├── environment.py   # Detección de entorno
+│   │   └── file_organizer.py # Organización de archivos
 │   ├── platforms/
 │   │   └── detector.py      # Detección de plataformas
 │   ├── storage/
