@@ -247,8 +247,10 @@ class UniversalDownloader:
             choices=["1", "2", "3", "4"],
             default="4"
         )
+        # Convertir a string para usar como clave del diccionario
+        choice_str = str(choice)
         
-        if choice == "4":
+        if choice_str == "4":
             return
         
         dest_map = {
@@ -257,7 +259,7 @@ class UniversalDownloader:
             "3": DestinationFolder.VIDEOS
         }
         
-        destination = dest_map[choice]
+        destination = dest_map[choice_str]  # Usar choice_str en lugar de choice
         
         # La ruta base para organizer es /storage/emulated/0
         storage_base = Path("/storage/emulated/0")
