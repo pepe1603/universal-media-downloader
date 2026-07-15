@@ -123,16 +123,17 @@ class UniversalDownloader:
         table.add_row("2", "📋 Consultar descargas")
         table.add_row("3", "📤 Exportar historial")
         table.add_row("4", "📊 Resumen reciente")
+        table.add_row("5", "🗑️  Limpiar errores")
         
         # Solo mostrar opción de organizar si es móvil
         if self.env_info and self.env_info.is_mobile:
-            table.add_row("5", "📁 Organizar archivos")
-            table.add_row("6", "👤 Cambiar usuario")
-            table.add_row("7", "⚙️  Configuración")
+            table.add_row("6", "📁 Organizar archivos")
+            table.add_row("7", "👤 Cambiar usuario")
+            table.add_row("8", "⚙️  Configuración")
             table.add_row("0", "🚪 Salir")
         else:
-            table.add_row("5", "👤 Cambiar usuario")
-            table.add_row("6", "⚙️  Configuración")
+            table.add_row("6", "👤 Cambiar usuario")
+            table.add_row("7", "⚙️  Configuración")
             table.add_row("0", "🚪 Salir")
         
         self.console.print(table)
@@ -920,6 +921,48 @@ class UniversalDownloader:
         
         self.cookie_manager.clear(platform)
     
+    def cleanup_failed_downloads(self):
+        """Limpiar descargas fallidas del historial."""
+        self.console.print("\n[bold cyan]═══ LIMPIAR ERRORES ═══[/bold cyan]\n")
+        
+        failed = self.database.get_failed_downloads()
+        
+        if not failed:
+            self.console.print("[green]✓[/green] No hay descargas con errores")
+            return
+        
+        self.console.print(f"[yellow]Se encontraron [bold]{len(failed)}[/bold] descargas con errores:[/yellow]\n")
+        
+        table = Table(box=box.ROUNDED)
+        table.add_column("ID", style="cyan", justify="center")
+        table.add_column("Fecha", style="green")
+        table.add_column("Plataforma", style="magenta")
+        table.add_column("Título", style="white", max_width=40)
+        table.add_column("Duración", style="yellow", justify="right")
+        table.add_column("Estado", style="red")
+        
+        for record in failed:
+            duration_str = self._format_duration(record.duration)
+            title_short = record.title[:40] + "..." if len(record.title) > 40 else record.title
+            status = "Error" if record.status == "failed" else "0:00"
+            
+            table.add_row(
+                str(record.id),
+                record.date,
+                record.platform,
+                title_short,
+                duration_str,
+                status
+            )
+        
+        self.console.print(table)
+        
+        if Confirm.ask(f"\n¿Eliminar [bold]{len(failed)}[/bold] registros con errores?", default=True):
+            deleted = self.database.delete_failed_downloads()
+            self.console.print(f"\n[green]✓[/green] {deleted} registros eliminados del historial")
+        else:
+            self.console.print("[yellow]Operación cancelada[/yellow]")
+    
     def run(self):
         """Ejecutar aplicación principal."""
         # Detectar entorno automáticamente
@@ -932,9 +975,9 @@ class UniversalDownloader:
             
             # Determinar opciones válidas según el entorno
             if self.env_info and self.env_info.is_mobile:
-                valid_choices = ["0", "1", "2", "3", "4", "5", "6", "7"]
+                valid_choices = ["0", "1", "2", "3", "4", "5", "6", "7", "8"]
             else:
-                valid_choices = ["0", "1", "2", "3", "4", "5", "6"]
+                valid_choices = ["0", "1", "2", "3", "4", "5", "6", "7"]
             
             choice = Prompt.ask(
                 "\nSeleccione una opción",
@@ -951,16 +994,18 @@ class UniversalDownloader:
             elif choice == "4":
                 self.recent_summary()
             elif choice == "5":
+                self.cleanup_failed_downloads()
+            elif choice == "6":
                 if self.env_info and self.env_info.is_mobile:
                     self.organize_files_menu()
                 else:
                     self.change_user()
-            elif choice == "6":
+            elif choice == "7":
                 if self.env_info and self.env_info.is_mobile:
                     self.change_user()
                 else:
                     self.settings()
-            elif choice == "7":
+            elif choice == "8":
                 if self.env_info and self.env_info.is_mobile:
                     self.settings()
             elif choice == "0":

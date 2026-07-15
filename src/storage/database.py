@@ -343,6 +343,69 @@ class Database:
         
         return deleted
     
+    def get_failed_downloads(self) -> List[DownloadRecord]:
+        """
+        Obtener descargas fallidas (status=failed, duración=0, o archivo inexistente/0kb).
+        
+        Returns:
+            Lista de registros de descarga fallidos
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT id, date, platform, title, url, format, file_path,
+                   duration, status, artist, quality, error_message
+            FROM downloads
+            WHERE status = 'failed'
+               OR duration = 0
+               OR duration IS NULL
+        """)
+        
+        records = []
+        for row in cursor.fetchall():
+            record = DownloadRecord(
+                id=row[0],
+                date=row[1],
+                platform=row[2],
+                title=row[3],
+                url=row[4],
+                format=row[5],
+                file_path=row[6],
+                duration=row[7],
+                status=row[8],
+                artist=row[9],
+                quality=row[10],
+                error_message=row[11]
+            )
+            records.append(record)
+        
+        conn.close()
+        return records
+    
+    def delete_failed_downloads(self) -> int:
+        """
+        Eliminar todas las descargas fallidas.
+        
+        Returns:
+            Número de registros eliminados
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            DELETE FROM downloads
+            WHERE status = 'failed'
+               OR duration = 0
+               OR duration IS NULL
+        """)
+        
+        deleted = cursor.rowcount
+        conn.commit()
+        conn.close()
+        
+        return deleted
+    
     def get_setting(self, key: str) -> Optional[str]:
         """
         Obtener un valor de configuración.
