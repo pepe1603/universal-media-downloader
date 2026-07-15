@@ -92,6 +92,12 @@ class MediaDownloader:
             'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
+            'socket_timeout': 30,
+            'retries': 10,
+            'fragment_retries': 10,
+            'skip_unavailable_fragments': True,
+            'no_check_certificate': True,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         }
         
         if download_thumbnail:
@@ -245,14 +251,30 @@ class MediaDownloader:
         
         except yt_dlp.utils.DownloadError as e:
             error_msg = str(e)
-            auth_keywords = ["login", "sign in", "private", "403", "401", "authentication", "age"]
-            is_auth_error = any(kw in error_msg.lower() for kw in auth_keywords)
+            error_lower = error_msg.lower()
             
-            if is_auth_error and not self.cookie_manager.is_active():
-                error_msg += (
+            auth_keywords = ["login", "sign in", "private", "401", "authentication", "age"]
+            is_auth_error = any(kw in error_lower for kw in auth_keywords)
+            
+            is_403 = "403" in error_msg or "forbidden" in error_lower
+            
+            suggestion = ""
+            
+            if is_403:
+                suggestion = (
+                    "\n\n💡 Error 403 (Forbidden). Posibles causas:\n"
+                    "  • Video muy largo (>1 hora): YouTube puede limitar descargas\n"
+                    "  • Restricción geográfica o de edad\n"
+                    "  • Cookies requeridas: Configuración > Gestionar cookies\n"
+                    "  • Actualiza yt-dlp: pip install --upgrade yt-dlp"
+                )
+            elif is_auth_error and not self.cookie_manager.is_active(platform):
+                suggestion = (
                     "\n\n💡 Este contenido requiere autenticación. "
                     "Configura cookies en: Configuración > Gestionar cookies"
                 )
+            
+            full_error_msg = f"Error de descarga: {error_msg}{suggestion}"
             
             record = DownloadRecord(
                 id=None,
@@ -270,7 +292,7 @@ class MediaDownloader:
             
             return DownloadResult(
                 success=False,
-                error_message=f"Error de descarga: {error_msg}"
+                error_message=full_error_msg
             )
         except Exception as e:
             return DownloadResult(
