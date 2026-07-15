@@ -138,19 +138,19 @@ La aplicación detecta automáticamente si estás en Termux o computadora y ajus
     2. Consultar descargas - Busca en el historial de descargas
     3. Exportar historial - Exporta a TXT, Markdown o JSON
     4. Resumen reciente - Estadísticas y últimas descargas
-    5. Cambiar usuario - Cambia el nombre de usuario
-    6. Configuración - Verifica dependencias y base de datos
-    7. 🍪 Gestionar cookies - Configura cookies para contenido privado
+    5. Limpiar errores - Elimina descargas fallidas del historial
+    6. Cambiar usuario - Cambia el nombre de usuario
+    7. Configuración - Verifica dependencias y base de datos
 
 # Menu principal (Movil/Termux)
     1. Descargar contenido - Descarga videos o audio desde URLs
     2. Consultar descargas - Busca en el historial de descargas
     3. Exportar historial - Exporta a TXT, Markdown o JSON
     4. Resumen reciente - Estadísticas y últimas descargas
-    5. 📁 Organizar archivos - Mueve archivos a Descargas/Música/Videos
-    6. Cambiar usuario - Cambia el nombre de usuario
-    7. Configuración - Verifica dependencias y entorno
-    8. 🍪 Gestionar cookies - Configura cookies para contenido privado
+    5. Limpiar errores - Elimina descargas fallidas del historial
+    6. 📁 Organizar archivos - Mueve archivos a Descargas/Música/Videos
+    7. Cambiar usuario - Cambia el nombre de usuario
+    8. Configuración - Verifica dependencias y entorno
 
 # Ejemplo de descarga de video
 
