@@ -30,6 +30,7 @@ from src.core.metadata import MetadataHandler, AudioMetadata
 from src.core.exporter import HistoryExporter
 from src.core.environment import EnvironmentDetector, EnvironmentInfo, EnvironmentType
 from src.core.file_organizer import FileOrganizer, DestinationFolder
+from src.core.cookies import CookieManager, Browser
 from src.storage.database import Database, DownloadRecord
 
 # Crear aplicación Typer
@@ -38,7 +39,7 @@ console = Console()
 
 # Constantes
 APP_NAME = "Universal Media Downloader"
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 
 
 class UniversalDownloader:
@@ -49,11 +50,12 @@ class UniversalDownloader:
         self.env_info: Optional[EnvironmentInfo] = None
         self.base_path: Optional[Path] = None
         self.database = Database()
-        self.downloader = MediaDownloader(self.console, self.database)
+        self.downloader: Optional[MediaDownloader] = None
         self.converter = AudioConverter(self.console)
         self.metadata_handler = MetadataHandler(self.console)
         self.exporter = HistoryExporter(self.console)
         self.file_organizer = FileOrganizer(self.console)
+        self.cookie_manager: Optional[CookieManager] = None
         self.username = "Usuario"
         self.running = True
     
@@ -101,6 +103,10 @@ class UniversalDownloader:
         
         # Crear directorio base
         self.base_path.mkdir(parents=True, exist_ok=True)
+        
+        # Inicializar componentes que dependen de base_path
+        self.downloader = MediaDownloader(self.base_path, self.console, self.database)
+        self.cookie_manager = CookieManager(self.base_path, self.console, self.database)
         
         self.console.print(f"\n[green]✓[/green] Entorno configurado: [bold]{self.env_info.display_name}[/bold]")
         self.console.print(f"[dim]Ruta base: {self.base_path}[/dim]")
@@ -204,8 +210,8 @@ class UniversalDownloader:
                 self.console.print(f"[dim]Artista: {result.artist}[/dim]")
                 self.console.print(f"[dim]Ubicación: {result.file_path}[/dim]")
                 if result.duration:
-                    minutes = result.duration // 60
-                    seconds = result.duration % 60
+                    minutes = int(result.duration) // 60
+                    seconds = int(result.duration) % 60
                     self.console.print(f"[dim]Duración: {minutes}:{seconds:02d}[/dim]")
                 if result.record_id:
                     self.console.print(f"[dim]ID de registro: {result.record_id}[/dim]")
@@ -477,6 +483,7 @@ class UniversalDownloader:
         """Formatear duración."""
         if seconds is None:
             return "N/A"
+        seconds = int(seconds)
         minutes = seconds // 60
         secs = seconds % 60
         return f"{minutes}:{secs:02d}"
@@ -673,39 +680,245 @@ class UniversalDownloader:
     
     def settings(self):
         """Configuración."""
-        self.console.print("\n[bold cyan]═══ CONFIGURACIÓN ═══[/bold cyan]\n")
+        while True:
+            self.console.print("\n[bold cyan]═══ CONFIGURACIÓN ═══[/bold cyan]\n")
+            
+            # Información del entorno
+            self.console.print("[bold]Entorno:[/bold]")
+            EnvironmentDetector.show_info(self.env_info, self.console)
+            self.console.print()
+            
+            # Dependencias
+            self.console.print("[bold]Dependencias:[/bold]")
+            DependencyChecker.show_status(self.console)
+            
+            try:
+                import mutagen
+                self.console.print(f"[green]✓[/green] [bold]mutagen[/bold]")
+                self.console.print(f"  [dim]Versión: {mutagen.version_string}[/dim]")
+            except ImportError:
+                self.console.print(f"[red]✗[/red] [bold]mutagen[/bold]")
+                self.console.print(f"  [red]No está instalado[/red]")
+            
+            # Cookies
+            self.console.print()
+            self.cookie_manager.show_status()
+            
+            # Base de datos
+            self.console.print(f"\n[bold]Base de datos:[/bold]")
+            self.console.print(f"  [dim]Ubicación: {self.database.db_path}[/dim]")
+            self.console.print(f"  [dim]Total de registros: {self.database.get_total_downloads()}[/dim]")
+            
+            # Instrucciones específicas para Termux
+            if self.env_info and self.env_info.env_type == EnvironmentType.TERMUX:
+                self.console.print(f"\n[bold cyan]Termux - Comandos útiles:[/bold cyan]")
+                self.console.print(f"  [dim]• Mantener despierto: termux-wake-lock[/dim]")
+                self.console.print(f"  [dim]• Configurar almacenamiento: termux-setup-storage[/dim]")
+                self.console.print(f"  [dim]• Instalar FFmpeg: pkg install ffmpeg[/dim]")
+                self.console.print(f"  [dim]• Instalar Python: pkg install python[/dim]")
+            
+            self.console.print("\n[bold]Opciones:[/bold]")
+            table = Table(box=box.SIMPLE)
+            table.add_column("Opción", style="cyan", justify="center")
+            table.add_column("Acción", style="white")
+            
+            table.add_row("1", "🍪 Gestionar cookies")
+            table.add_row("2", "Regresar")
+            
+            self.console.print(table)
+            
+            choice = Prompt.ask(
+                "\nSeleccione una opción",
+                choices=["1", "2"],
+                default="2"
+            )
+            
+            if choice == "1":
+                self._cookies_menu()
+            else:
+                break
+    
+    def _cookies_menu(self):
+        """Submenú de gestión de cookies para contenido privado."""
+        self.console.print("\n[bold cyan]═══ GESTIONAR COOKIES ═══[/bold cyan]")
+        self.console.print("[dim]Las cookies permiten descargar contenido privado/restringido[/dim]")
+        self.console.print(f"[dim]Carpeta: {self.cookie_manager.cookies_dir}[/dim]\n")
         
-        # Información del entorno
-        self.console.print("[bold]Entorno:[/bold]")
-        EnvironmentDetector.show_info(self.env_info, self.console)
-        self.console.print()
+        self.cookie_manager.show_status()
         
-        # Dependencias
-        self.console.print("[bold]Dependencias:[/bold]")
-        DependencyChecker.show_status(self.console)
+        self.console.print("\n[bold]Opciones:[/bold]")
+        table = Table(box=box.SIMPLE)
+        table.add_column("Opción", style="cyan", justify="center")
+        table.add_column("Acción", style="white")
+        
+        table.add_row("1", "📂 Cargar cookies para una plataforma")
+        
+        has_browsers = self.env_info and not self.env_info.is_mobile and self.env_info.available_browsers
+        next_option = 2
+        
+        if has_browsers:
+            table.add_row("2", "🌐 Extraer cookies del navegador")
+            next_option = 3
+        
+        table.add_row(str(next_option), "🧪 Probar cookies de una plataforma")
+        table.add_row(str(next_option + 1), "🗑️  Eliminar cookies de una plataforma")
+        table.add_row(str(next_option + 2), "🗑️  Eliminar todas las cookies")
+        table.add_row(str(next_option + 3), "Regresar")
+        
+        self.console.print(table)
+        
+        max_option = next_option + 3
+        choices = [str(i) for i in range(1, max_option + 1)]
+        
+        choice = Prompt.ask(
+            "\nSeleccione una opción",
+            choices=choices,
+            default=str(max_option)
+        )
+        
+        if choice == "1":
+            self._configure_cookie_file()
+        elif choice == "2" and has_browsers:
+            self._configure_browser_cookies()
+        elif choice == str(next_option):
+            self._test_cookies()
+        elif choice == str(next_option + 1):
+            self._clear_platform_cookies()
+        elif choice == str(next_option + 2):
+            if Confirm.ask("\n¿Eliminar todas las cookies?", default=False):
+                self.cookie_manager.clear()
+    
+    def _select_platform(self, prompt_text: str = "Selecciona la plataforma") -> Optional[str]:
+        """Seleccionar plataforma de la lista."""
+        self.console.print(f"\n[bold]{prompt_text}:[/bold]")
+        
+        table = Table(box=box.SIMPLE)
+        table.add_column("Opción", style="cyan", justify="center")
+        table.add_column("Plataforma", style="white")
+        table.add_column("Estado", style="dim")
+        
+        platforms = CookieManager.PLATFORMS
+        for i, platform in enumerate(platforms, 1):
+            status = "[green]✓[/green]" if self.cookie_manager.has_cookies(platform) else "[dim]○[/dim]"
+            table.add_row(str(i), platform.capitalize(), status)
+        
+        table.add_row(str(len(platforms) + 1), "Regresar")
+        self.console.print(table)
+        
+        choices = [str(i) for i in range(1, len(platforms) + 2)]
+        choice = Prompt.ask(
+            "\nSeleccione",
+            choices=choices,
+            default=str(len(platforms) + 1)
+        )
+        
+        if choice == str(len(platforms) + 1):
+            return None
+        
+        return platforms[int(choice) - 1]
+    
+    def _configure_cookie_file(self):
+        """Configurar cookies desde archivo cookies.txt para una plataforma."""
+        platform = self._select_platform("Cargar cookies para")
+        if not platform:
+            return
+        
+        self.console.print(f"\n[bold]Cargar cookies para [cyan]{platform.capitalize()}[/cyan][/bold]")
+        self.console.print("[dim]Exporta tus cookies con una extensión como 'Get cookies.txt LOCALLY'[/dim]")
+        self.console.print("[dim]desde tu navegador (Chrome, Firefox, etc.)[/dim]\n")
+        
+        dest_path = self.cookie_manager.get_cookie_path(platform)
+        self.console.print(f"[dim]Se copiará a: {dest_path}[/dim]")
+        
+        if self.env_info and self.env_info.is_mobile:
+            default_path = str(self.env_info.home_path / f"{platform}_cookies.txt")
+            self.console.print(f"[dim]En Termux, coloca tu archivo en: {default_path}[/dim]")
+        else:
+            default_path = ""
+        
+        file_path = Prompt.ask("\nRuta al archivo cookies.txt", default=default_path)
+        
+        if not file_path:
+            self.console.print("[yellow]⚠ No se proporcionó una ruta[/yellow]")
+            return
+        
+        self.cookie_manager.configure_file(platform, Path(file_path))
+    
+    def _configure_browser_cookies(self):
+        """Configurar cookies extrayéndolas del navegador para una plataforma."""
+        platform = self._select_platform("Extraer cookies para")
+        if not platform:
+            return
+        
+        if not self.env_info or not self.env_info.available_browsers:
+            self.console.print("[yellow]No se detectaron navegadores instalados[/yellow]")
+            return
+        
+        self.console.print(f"\n[bold]Selecciona el navegador para extraer cookies de [cyan]{platform.capitalize()}[/cyan]:[/bold]")
+        
+        browsers = self.env_info.available_browsers
+        table = Table(box=box.SIMPLE)
+        table.add_column("Opción", style="cyan", justify="center")
+        table.add_column("Navegador", style="white")
+        
+        browser_map = {}
+        for i, browser_name in enumerate(browsers, 1):
+            table.add_row(str(i), browser_name.capitalize())
+            browser_map[str(i)] = browser_name
+        
+        table.add_row(str(len(browsers) + 1), "Regresar")
+        
+        self.console.print(table)
+        
+        choices = [str(i) for i in range(1, len(browsers) + 2)]
+        choice = Prompt.ask(
+            "\nSeleccione un navegador",
+            choices=choices,
+            default="1"
+        )
+        
+        if choice == str(len(browsers) + 1):
+            return
+        
+        browser_name = browser_map[choice]
         
         try:
-            import mutagen
-            self.console.print(f"[green]✓[/green] [bold]mutagen[/bold]")
-            self.console.print(f"  [dim]Versión: {mutagen.version_tuple[0]}.{mutagen.version_tuple[1]}.{mutagen.version_tuple[2]}[/dim]")
-        except ImportError:
-            self.console.print(f"[red]✗[/red] [bold]mutagen[/bold]")
-            self.console.print(f"  [red]No está instalado[/red]")
+            browser_enum = Browser(browser_name)
+            self.console.print(f"\n[cyan]Extrayendo cookies de {browser_name} para {platform}...[/cyan]")
+            self.cookie_manager.configure_from_browser(platform, browser_enum)
+        except ValueError:
+            self.console.print(f"[red]Navegador no soportado: {browser_name}[/red]")
+    
+    def _test_cookies(self):
+        """Probar si las cookies de una plataforma son válidas."""
+        platform = self._select_platform("Probar cookies de")
+        if not platform:
+            return
         
-        # Base de datos
-        self.console.print(f"\n[bold]Base de datos:[/bold]")
-        self.console.print(f"  [dim]Ubicación: {self.database.db_path}[/dim]")
-        self.console.print(f"  [dim]Total de registros: {self.database.get_total_downloads()}[/dim]")
+        if not self.cookie_manager.has_cookies(platform):
+            self.console.print(f"\n[yellow]⚠ No hay cookies configuradas para {platform}[/yellow]")
+            return
         
-        # Instrucciones específicas para Termux
-        if self.env_info and self.env_info.env_type == EnvironmentType.TERMUX:
-            self.console.print(f"\n[bold cyan]Termux - Comandos útiles:[/bold cyan]")
-            self.console.print(f"  [dim]• Mantener despierto: termux-wake-lock[/dim]")
-            self.console.print(f"  [dim]• Configurar almacenamiento: termux-setup-storage[/dim]")
-            self.console.print(f"  [dim]• Instalar FFmpeg: pkg install ffmpeg[/dim]")
-            self.console.print(f"  [dim]• Instalar Python: pkg install python[/dim]")
+        self.console.print(f"\n[cyan]Probando cookies de {platform}...[/cyan]")
         
-        self.console.print("\n[yellow]⚠ Más opciones en desarrollo[/yellow]")
+        result = self.cookie_manager.test_cookies(platform)
+        
+        if result.valid:
+            self.console.print(f"[green]✓ {result.message}[/green]")
+        else:
+            self.console.print(f"[red]✗ {result.message}[/red]")
+    
+    def _clear_platform_cookies(self):
+        """Eliminar cookies de una plataforma específica."""
+        platform = self._select_platform("Eliminar cookies de")
+        if not platform:
+            return
+        
+        if not self.cookie_manager.has_cookies(platform):
+            self.console.print(f"\n[yellow]⚠ No hay cookies configuradas para {platform}[/yellow]")
+            return
+        
+        self.cookie_manager.clear(platform)
     
     def run(self):
         """Ejecutar aplicación principal."""

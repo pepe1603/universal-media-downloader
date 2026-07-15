@@ -14,6 +14,7 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 
 from src.core.dependencies import DependencyChecker
+from src.core.cookies import CookieManager
 from src.storage.database import Database, DownloadRecord, DownloadStatus
 
 
@@ -41,9 +42,11 @@ class DownloadResult:
 class MediaDownloader:
     """Descargador de contenido multimedia usando yt-dlp."""
     
-    def __init__(self, console: Optional[Console] = None, database: Optional[Database] = None):
+    def __init__(self, base_path: Path, console: Optional[Console] = None, database: Optional[Database] = None):
         self.console = console or Console()
         self.database = database or Database()
+        self.base_path = base_path
+        self.cookie_manager = CookieManager(base_path, self.console, self.database)
     
     def _check_dependencies(self) -> bool:
         """
@@ -68,6 +71,7 @@ class MediaDownloader:
         self,
         quality: Quality,
         output_path: Path,
+        platform: str,
         download_thumbnail: bool = False
     ) -> dict:
         """
@@ -76,6 +80,7 @@ class MediaDownloader:
         Args:
             quality: Calidad de descarga
             output_path: Ruta de salida
+            platform: Nombre de la plataforma
             download_thumbnail: Si debe descargar la miniatura
             
         Returns:
@@ -89,7 +94,6 @@ class MediaDownloader:
             'no_warnings': True,
         }
         
-        # Descargar miniatura si se solicita
         if download_thumbnail:
             opts['writethumbnail'] = True
         
@@ -114,6 +118,9 @@ class MediaDownloader:
                     'preferredquality': '192',
                 }],
             })
+        
+        cookie_opts = self.cookie_manager.get_ydl_opts(platform)
+        opts.update(cookie_opts)
         
         return opts
     
@@ -151,7 +158,7 @@ class MediaDownloader:
             platform_path.mkdir(parents=True, exist_ok=True)
             
             # Obtener opciones de yt-dlp
-            ydl_opts = self._get_ydl_opts(quality, platform_path, download_thumbnail)
+            ydl_opts = self._get_ydl_opts(quality, platform_path, platform, download_thumbnail)
             
             # Descargar con barra de progreso
             with Progress(
@@ -237,7 +244,16 @@ class MediaDownloader:
             )
         
         except yt_dlp.utils.DownloadError as e:
-            # Registrar descarga fallida
+            error_msg = str(e)
+            auth_keywords = ["login", "sign in", "private", "403", "401", "authentication", "age"]
+            is_auth_error = any(kw in error_msg.lower() for kw in auth_keywords)
+            
+            if is_auth_error and not self.cookie_manager.is_active():
+                error_msg += (
+                    "\n\n💡 Este contenido requiere autenticación. "
+                    "Configura cookies en: Configuración > Gestionar cookies"
+                )
+            
             record = DownloadRecord(
                 id=None,
                 date=datetime.now().strftime('%Y-%m-%d'),
@@ -254,7 +270,7 @@ class MediaDownloader:
             
             return DownloadResult(
                 success=False,
-                error_message=f"Error de descarga: {str(e)}"
+                error_message=f"Error de descarga: {error_msg}"
             )
         except Exception as e:
             return DownloadResult(
@@ -262,12 +278,13 @@ class MediaDownloader:
                 error_message=f"Error inesperado: {str(e)}"
             )
     
-    def get_video_info(self, url: str) -> Optional[dict]:
+    def get_video_info(self, url: str, platform: str = None) -> Optional[dict]:
         """
         Obtener información de un video sin descargarlo.
         
         Args:
             url: URL del video
+            platform: Nombre de la plataforma (opcional)
             
         Returns:
             Diccionario con información del video o None
@@ -278,6 +295,10 @@ class MediaDownloader:
                 'no_warnings': True,
                 'extract_flat': False,
             }
+            
+            if platform:
+                cookie_opts = self.cookie_manager.get_ydl_opts(platform)
+                ydl_opts.update(cookie_opts)
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)

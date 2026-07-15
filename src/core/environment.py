@@ -7,8 +7,8 @@ import os
 import platform
 import shutil
 from pathlib import Path
-from typing import Optional
-from dataclasses import dataclass
+from typing import Optional, List
+from dataclasses import dataclass, field
 from enum import Enum
 
 
@@ -32,6 +32,7 @@ class EnvironmentInfo:
     videos_path: Optional[Path]
     has_storage_permission: bool
     display_name: str
+    available_browsers: List[str] = field(default_factory=list)
 
 
 class EnvironmentDetector:
@@ -121,7 +122,8 @@ class EnvironmentDetector:
             music_path=downloads,
             videos_path=downloads,
             has_storage_permission=True,
-            display_name="Computadora (Windows)"
+            display_name="Computadora (Windows)",
+            available_browsers=cls._detect_browsers()
         )
     
     @classmethod
@@ -138,7 +140,8 @@ class EnvironmentDetector:
             music_path=downloads,
             videos_path=downloads,
             has_storage_permission=True,
-            display_name="Computadora (Linux)"
+            display_name="Computadora (Linux)",
+            available_browsers=cls._detect_browsers()
         )
     
     @classmethod
@@ -155,7 +158,8 @@ class EnvironmentDetector:
             music_path=downloads,
             videos_path=downloads,
             has_storage_permission=True,
-            display_name="Computadora (macOS)"
+            display_name="Computadora (macOS)",
+            available_browsers=cls._detect_browsers()
         )
     
     @classmethod
@@ -172,8 +176,67 @@ class EnvironmentDetector:
             music_path=downloads,
             videos_path=downloads,
             has_storage_permission=True,
-            display_name="Sistema desconocido"
+            display_name="Sistema desconocido",
+            available_browsers=cls._detect_browsers()
         )
+    
+    @classmethod
+    def _detect_browsers(cls) -> List[str]:
+        """
+        Detectar navegadores instalados en el sistema.
+        
+        Returns:
+            Lista de nombres de navegadores detectados
+        """
+        system = platform.system().lower()
+        browsers_found = []
+
+        browser_checks = {
+            "chrome": {
+                "windows": ["chrome"],
+                "linux": ["google-chrome", "google-chrome-stable"],
+                "darwin": ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"],
+            },
+            "firefox": {
+                "windows": ["firefox"],
+                "linux": ["firefox"],
+                "darwin": ["/Applications/Firefox.app/Contents/MacOS/firefox"],
+            },
+            "edge": {
+                "windows": ["msedge"],
+                "linux": ["microsoft-edge", "microsoft-edge-stable"],
+                "darwin": ["/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"],
+            },
+            "opera": {
+                "windows": ["opera"],
+                "linux": ["opera"],
+                "darwin": ["/Applications/Opera.app/Contents/MacOS/Opera"],
+            },
+            "brave": {
+                "windows": ["brave"],
+                "linux": ["brave-browser", "brave"],
+                "darwin": ["/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"],
+            },
+            "chromium": {
+                "windows": ["chromium"],
+                "linux": ["chromium", "chromium-browser"],
+                "darwin": ["/Applications/Chromium.app/Contents/MacOS/Chromium"],
+            },
+        }
+
+        for browser_name, executables in browser_checks.items():
+            exe_list = executables.get(system, [])
+            for exe in exe_list:
+                if system == "darwin":
+                    if Path(exe).exists():
+                        browsers_found.append(browser_name)
+                        break
+                else:
+                    if shutil.which(exe):
+                        browsers_found.append(browser_name)
+                        break
+
+        return browsers_found
     
     @classmethod
     def show_info(cls, info: EnvironmentInfo, console) -> None:
@@ -191,3 +254,6 @@ class EnvironmentDetector:
             else:
                 console.print(f"  [red]✗ Permiso de almacenamiento: No concedido[/red]")
                 console.print(f"  [yellow]Ejecuta: termux-setup-storage[/yellow]")
+        
+        if info.available_browsers:
+            console.print(f"  Navegadores detectados: [dim]{', '.join(info.available_browsers)}[/dim]")

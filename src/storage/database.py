@@ -34,6 +34,7 @@ class DownloadRecord:
     status: str
     artist: Optional[str] = None
     quality: Optional[str] = None
+    error_message: Optional[str] = None
 
 
 class Database:
@@ -49,6 +50,7 @@ class Database:
         self.db_path = db_path
         self._ensure_db_directory()
         self._init_database()
+        self._migrate_database()
     
     def _ensure_db_directory(self):
         """Asegurar que el directorio de la base de datos existe."""
@@ -73,6 +75,7 @@ class Database:
                 status TEXT NOT NULL,
                 artist TEXT,
                 quality TEXT,
+                error_message TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -117,8 +120,8 @@ class Database:
         cursor.execute("""
             INSERT INTO downloads (
                 date, platform, title, url, format, file_path,
-                duration, status, artist, quality
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                duration, status, artist, quality, error_message
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             record.date,
             record.platform,
@@ -129,7 +132,8 @@ class Database:
             record.duration,
             record.status,
             record.artist,
-            record.quality
+            record.quality,
+            record.error_message
         ))
         
         record_id = cursor.lastrowid
@@ -153,7 +157,7 @@ class Database:
         
         cursor.execute("""
             SELECT id, date, platform, title, url, format, file_path,
-                   duration, status, artist, quality
+                   duration, status, artist, quality, error_message
             FROM downloads
             ORDER BY created_at DESC
             LIMIT ?
@@ -172,7 +176,8 @@ class Database:
                 duration=row[7],
                 status=row[8],
                 artist=row[9],
-                quality=row[10]
+                quality=row[10],
+                error_message=row[11]
             ))
         
         conn.close()
@@ -202,7 +207,7 @@ class Database:
         
         query = """
             SELECT id, date, platform, title, url, format, file_path,
-                   duration, status, artist, quality
+                   duration, status, artist, quality, error_message
             FROM downloads
             WHERE 1=1
         """
@@ -241,7 +246,8 @@ class Database:
                 duration=row[7],
                 status=row[8],
                 artist=row[9],
-                quality=row[10]
+                quality=row[10],
+                error_message=row[11]
             ))
         
         conn.close()
@@ -262,7 +268,7 @@ class Database:
         
         cursor.execute("""
             SELECT id, date, platform, title, url, format, file_path,
-                   duration, status, artist, quality
+                   duration, status, artist, quality, error_message
             FROM downloads
             WHERE id = ?
         """, (download_id,))
@@ -282,7 +288,8 @@ class Database:
                 duration=row[7],
                 status=row[8],
                 artist=row[9],
-                quality=row[10]
+                quality=row[10],
+                error_message=row[11]
             )
         
         return None
@@ -335,3 +342,103 @@ class Database:
         conn.close()
         
         return deleted
+    
+    def get_setting(self, key: str) -> Optional[str]:
+        """
+        Obtener un valor de configuración.
+        
+        Args:
+            key: Clave de configuración
+            
+        Returns:
+            Valor de la configuración o None
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        
+        conn.close()
+        
+        return row[0] if row else None
+    
+    def set_setting(self, key: str, value: str) -> bool:
+        """
+        Establecer un valor de configuración (inserta o actualiza).
+        
+        Args:
+            key: Clave de configuración
+            value: Valor a almacenar
+            
+        Returns:
+            True si se guardó correctamente
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO settings (key, value, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(key) DO UPDATE SET
+                    value = excluded.value,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (key, value))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Exception:
+            return False
+    
+    def _migrate_database(self):
+        """Aplicar migraciones a bases de datos existentes."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("PRAGMA table_info(downloads)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        if "error_message" not in columns:
+            cursor.execute("ALTER TABLE downloads ADD COLUMN error_message TEXT")
+            conn.commit()
+        
+        conn.close()
+    
+    def delete_setting(self, key: str) -> bool:
+        """
+        Eliminar un valor de configuración.
+        
+        Args:
+            key: Clave de configuración
+            
+        Returns:
+            True si se eliminó correctamente
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM settings WHERE key = ?", (key,))
+        deleted = cursor.rowcount > 0
+        
+        conn.commit()
+        conn.close()
+        
+        return deleted
+    
+    def get_all_settings(self) -> dict:
+        """
+        Obtener toda la configuración.
+        
+        Returns:
+            Diccionario con clave-valor de todas las configuraciones
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT key, value FROM settings")
+        settings = {row[0]: row[1] for row in cursor.fetchall()}
+        
+        conn.close()
+        return settings

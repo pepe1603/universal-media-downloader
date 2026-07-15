@@ -4,7 +4,7 @@ CLI multiplataforma para descargar contenido multimedia desde múltiples platafo
 
 ## Estado Actual
 
-✅ **Fase 4 Completada** - Soporte completo para Termux (Android)
+✅ **Fase 5 Completada** - Soporte para contenido privado con cookies
 
 ## Plataformas soportadas
 
@@ -15,7 +15,7 @@ CLI multiplataforma para descargar contenido multimedia desde múltiples platafo
 
 ## Características
 
-### Implementadas (Fases 1, 2, 3 y 4)
+### Implementadas (Fases 1, 2, 3, 4 y 5)
 - ✅ Descarga de video en máxima calidad disponible
 - ✅ Descarga en calidad recomendada (720p)
 - ✅ Detección automática de plataforma desde URL
@@ -30,6 +30,9 @@ CLI multiplataforma para descargar contenido multimedia desde múltiples platafo
 - ✅ **Detección automática de entorno (Termux/Windows/Linux/macOS)**
 - ✅ **Organización de archivos en Android (Descargas/Música/Videos)**
 - ✅ **Verificación de permisos de almacenamiento en Termux**
+- ✅ **Cookies para contenido privado (archivo cookies.txt o navegador local)**
+- ✅ **Detección automática de navegadores instalados**
+- ✅ **Validación y prueba de cookies**
 - ✅ Interfaz CLI profesional con Rich
 - ✅ Soporte multiplataforma completo
 
@@ -137,6 +140,7 @@ La aplicación detecta automáticamente si estás en Termux o computadora y ajus
     4. Resumen reciente - Estadísticas y últimas descargas
     5. Cambiar usuario - Cambia el nombre de usuario
     6. Configuración - Verifica dependencias y base de datos
+    7. 🍪 Gestionar cookies - Configura cookies para contenido privado
 
 # Menu principal (Movil/Termux)
     1. Descargar contenido - Descarga videos o audio desde URLs
@@ -146,6 +150,7 @@ La aplicación detecta automáticamente si estás en Termux o computadora y ajus
     5. 📁 Organizar archivos - Mueve archivos a Descargas/Música/Videos
     6. Cambiar usuario - Cambia el nombre de usuario
     7. Configuración - Verifica dependencias y entorno
+    8. 🍪 Gestionar cookies - Configura cookies para contenido privado
 
 # Ejemplo de descarga de video
 
@@ -194,6 +199,56 @@ El sistema automáticamente:
     - Markdown: Formato con encabezados y listas
     - JSON: Datos estructurados para procesamiento
 
+
+## Cookies para contenido privado
+
+Para descargar videos privados, restringidos por edad o que requieren inicio de sesión, necesitas configurar cookies de tu navegador.
+
+Las cookies se organizan por plataforma en la carpeta `cookies/`:
+```
+UniversalDownloader/
+└── cookies/
+    ├── youtube.txt
+    ├── instagram.txt
+    ├── facebook.txt
+    └── tiktok.txt
+```
+
+### Desde computadora (Windows/Linux/macOS)
+
+**Opción A: Archivo cookies.txt por plataforma**
+
+1. Instala la extensión "Get cookies.txt LOCALLY" en tu navegador
+2. Inicia sesión en la plataforma (YouTube, Instagram, etc.)
+3. Exporta las cookies con la extensión
+4. En UMD: Configuración > Gestionar cookies > Cargar cookies para una plataforma
+5. Selecciona la plataforma (YouTube, Instagram, etc.)
+6. Ingresa la ruta al archivo exportado
+7. El archivo se copiará automáticamente a `cookies/[plataforma].txt`
+
+**Opción B: Extraer del navegador (automático)**
+
+1. Ve a Configuración > Gestionar cookies > Extraer cookies del navegador
+2. Selecciona la plataforma
+3. Elige el navegador detectado (Chrome, Firefox, Edge, etc.)
+4. El sistema extraerá las cookies automáticamente
+
+### Desde Android (Termux)
+
+1. Exporta cookies desde tu navegador móvil con "Get cookies.txt LOCALLY"
+2. Copia el archivo a tu dispositivo:
+    ```bash
+    cp /sdcard/Download/instagram_cookies.txt ~/instagram_cookies.txt
+    ```
+3. En UMD: Configuración > Gestionar cookies > Cargar cookies para una plataforma
+4. Selecciona la plataforma e ingresa la ruta al archivo
+
+### Verificar cookies
+
+Puedes probar si tus cookies siguen vigentes desde:
+- Configuración > Gestionar cookies > Probar cookies de una plataforma
+
+> **Nota:** Las cookies expiran periódicamente. Si una descarga falla con error de autenticación, re-exporta tus cookies.
 
 ## Rutas de almacenamiento
 
@@ -255,7 +310,16 @@ Los archivos se guardan en:
 - Organización de archivos en móvil
 - Instrucciones específicas para Termux
 
-### Fase 5 (Próxima)
+### Fase 5 ✅ (Completada)
+- Soporte de cookies para contenido privado/restringido
+- Carga de cookies desde archivo cookies.txt
+- Extracción de cookies desde navegadores locales (Chrome, Firefox, Edge, etc.)
+- Detección automática de navegadores instalados
+- Validación y prueba de cookies
+- Persistencia de configuración en SQLite
+- Sugerencia automática al detectar errores de autenticación
+
+### Fase 6 (Próxima)
 
 - API REST con FastAPI
 - Cliente Web o Android
@@ -271,9 +335,10 @@ universal-media-downloader/
 │   │   ├── converter.py     # Conversión de audio con FFmpeg
 │   │   ├── metadata.py      # Incrustación de metadatos y carátulas
 │   │   ├── exporter.py      # Exportación de historial
-│   │   |── dependencies.py  # Verificación de dependencias
+│   │   ├── dependencies.py  # Verificación de dependencias
 │   │   ├── environment.py   # Detección de entorno
-│   │   └── file_organizer.py # Organización de archivos
+│   │   ├── file_organizer.py # Organización de archivos
+│   │   └── cookies.py       # Gestión de cookies para contenido privado
 │   ├── platforms/
 │   │   └── detector.py      # Detección de plataformas
 │   ├── storage/
