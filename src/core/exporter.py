@@ -155,6 +155,7 @@ class HistoryExporter:
         if seconds is None:
             return "Desconocido"
         
+        seconds = int(seconds)
         minutes = seconds // 60
         secs = seconds % 60
         return f"{minutes}:{secs:02d}"
