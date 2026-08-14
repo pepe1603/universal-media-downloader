@@ -20,7 +20,6 @@ from rich.panel import Panel
 from rich.prompt import Prompt, IntPrompt, Confirm
 from rich.table import Table
 from rich import box
-import typer
 
 from src.platforms.detector import PlatformDetector, Platform
 from src.core.downloader import MediaDownloader, Quality
@@ -40,8 +39,6 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
 if sys.stderr and hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
-# Crear aplicación Typer
-app = typer.Typer(help="Universal Media Downloader - Descarga contenido multimedia de múltiples plataformas")
 console = Console()
 
 # Constantes

@@ -277,7 +277,6 @@ Los archivos se guardan en:
 - mutagen (metadatos ID3)
 - SQLite (base de datos de historial)
 - Rich (UI terminal profesional)
-- Typer (CLI framework)
 - Pydantic (validación de datos)
 
 ## Roadmap
