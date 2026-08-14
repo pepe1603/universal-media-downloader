@@ -441,12 +441,12 @@ class UniversalDownloader:
     def _search_by_date(self):
         """Buscar descargas por fecha."""
         self.console.print("\n[bold]Búsqueda por fecha:[/bold]")
-        date_from = Prompt.ask("Desde (YYYY-MM-DD)", default="")
-        date_to = Prompt.ask("Hasta (YYYY-MM-DD)", default="")
+        date_from = self._ask_valid_date("Desde (YYYY-MM-DD)")
+        date_to = self._ask_valid_date("Hasta (YYYY-MM-DD)")
         
         records = self.database.search_downloads(
-            date_from=date_from if date_from else None,
-            date_to=date_to if date_to else None
+            date_from=date_from,
+            date_to=date_to
         )
         
         if not records:
@@ -454,6 +454,18 @@ class UniversalDownloader:
             return
         
         self._display_downloads_table(records)
+
+    def _ask_valid_date(self, prompt: str) -> Optional[str]:
+        """Pedir una fecha y validar que tenga formato YYYY-MM-DD."""
+        while True:
+            value = Prompt.ask(prompt, default="")
+            if not value:
+                return None
+            try:
+                datetime.strptime(value, "%Y-%m-%d")
+                return value
+            except ValueError:
+                self.console.print(f"[red]Formato inválido: '{value}'. Usa YYYY-MM-DD (ej. 2024-03-15).[/red]")
     
     def _search_by_name(self):
         """Buscar descargas por nombre."""
