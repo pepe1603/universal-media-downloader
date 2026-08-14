@@ -343,49 +343,67 @@ class CookieManager:
         """
         Verificar si las cookies de una plataforma permiten acceder.
 
-        Args:
-            platform: Nombre de la plataforma
-
-        Returns:
-            CookieValidation con el resultado
+        Realiza una petición HTTP autenticada a una página de cuenta y detecta
+        si el servidor redirige al login o devuelve una página de inicio de
+        sesión, lo que indica cookies inválidas o expiradas.
         """
-        import yt_dlp
+        from http.cookiejar import MozillaCookieJar
+
+        import urllib.request
 
         if not self.has_cookies(platform):
             return CookieValidation(valid=False, message=f"No hay cookies configuradas para {platform}")
 
+        # Páginas que requieren iniciar sesión para acceder
         url_map = {
-            "youtube": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
-            "instagram": "https://www.instagram.com",
-            "facebook": "https://www.facebook.com",
-            "tiktok": "https://www.tiktok.com",
+            "youtube": "https://www.youtube.com/account",
+            "instagram": "https://www.instagram.com/accounts/edit/",
+            "facebook": "https://www.facebook.com/settings",
+            "tiktok": "https://www.tiktok.com/upload",
         }
         test_url = url_map.get(platform.lower())
 
         if not test_url:
             return CookieValidation(valid=False, message=f"Plataforma no soportada: {platform}")
 
-        ydl_opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "extract_flat": False,
-            "skip_download": True,
-        }
+        cookie_path = self.get_cookie_path(platform)
+        jar = MozillaCookieJar(str(cookie_path))
+        try:
+            jar.load(ignore_discard=True, ignore_expires=True)
+        except Exception as e:
+            return CookieValidation(valid=False, message=f"No se pudo leer el archivo de cookies ({e}). Re-exporta tus cookies.")
 
-        cookie_opts = self.get_ydl_opts(platform)
-        ydl_opts.update(cookie_opts)
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+        opener.addheaders = [
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
+            ("Accept-Language", "en-US,en;q=0.9"),
+        ]
 
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.extract_info(test_url, download=False)
-            return CookieValidation(valid=True, message=f"Cookies de {platform} válidas")
-        except yt_dlp.utils.DownloadError as e:
-            error_msg = str(e)
-            if "login" in error_msg.lower() or "sign in" in error_msg.lower() or "403" in error_msg:
-                return CookieValidation(valid=False, message=f"Cookies de {platform} inválidas o expiradas. Re-exporta tus cookies.")
-            return CookieValidation(valid=False, message=f"Error de acceso: {error_msg}")
+            with opener.open(test_url, timeout=30) as resp:
+                final_url = resp.geturl().lower()
+                body = resp.read(200000).decode("utf-8", errors="ignore").lower()
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                return CookieValidation(valid=False, message=f"Cookies de {platform} inválidas o expiradas (HTTP {e.code}). Re-exporta tus cookies.")
+            return CookieValidation(valid=False, message=f"Error de acceso: HTTP {e.code}")
         except Exception as e:
-            return CookieValidation(valid=False, message=f"Error inesperado: {e}")
+            return CookieValidation(valid=False, message=f"Error de acceso: {e}")
+
+        # Detectar redirección a una URL de inicio de sesión
+        redirected_to_login = any(m in final_url for m in ["signin", "servicelogin", "/login", "accounts/login"])
+
+        # Detectar marcadores de inicio de sesión en el cuerpo (páginas que responden 200 con el login)
+        body_has_login = any(m in body for m in [
+            "sign in to continue", "log in to continue",
+            "sign in", "log in", "iniciar sesión", "iniciar sesion",
+            "enter your password", "log in with",
+        ])
+
+        if redirected_to_login or body_has_login:
+            return CookieValidation(valid=False, message=f"Cookies de {platform} inválidas o expiradas. Re-exporta tus cookies.")
+
+        return CookieValidation(valid=True, message=f"Cookies de {platform} válidas")
 
     def show_status(self) -> None:
         """Mostrar el estado actual de las cookies por plataforma."""
