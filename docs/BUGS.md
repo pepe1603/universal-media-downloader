@@ -44,7 +44,7 @@ Lista de problemas detectados en la CLI, separados por entorno (Termux / Termina
 ### BUG-06 🟡 Detección de navegadores en Windows poco fiable
 - **Archivo:** `src/core/environment.py:235`
 - **Descripción:** `shutil.which("chrome")` falla en Windows porque Chrome/Edge/Opera normalmente no están en `PATH`. La opción "Extraer cookies del navegador" puede no aparecer aunque el navegador esté instalado.
-- **Solución propuesta:** Verificar rutas estándar de instalación en Windows (`%LOCALAPPDATA%`, `%PROGRAMFILES%`, `%PROGRAMFILES(X86)%`).
+- **Solución aplicada:** Verificar también rutas estándar de instalación en Windows (`%LOCALAPPDATA%`, `%PROGRAMFILES%`, `%PROGRAMFILES(X86)%`). Verificado: detecta Chrome, Edge y Brave que antes no aparecían.
 
 ### BUG-07 🟡 `configure_from_browser` falla si el navegador está abierto
 - **Archivo:** `src/core/cookies.py:218`
@@ -102,7 +102,7 @@ Lista de problemas detectados en la CLI, separados por entorno (Termux / Termina
 | BUG-03 | Termux | `termux` | Resuelto |
 | BUG-04 | Termux | `termux` | Resuelto |
 | BUG-05 | Termux | `termux` | Pendiente |
-| BUG-06 | Terminal | `terminal` | Pendiente |
+| BUG-06 | Terminal | `terminal` | Resuelto |
 | BUG-07 | Terminal | `terminal` | Pendiente |
 | BUG-08 | Terminal | `terminal` | Pendiente |
 | BUG-09 | Terminal | `terminal` | Pendiente |
