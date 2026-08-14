@@ -165,6 +165,8 @@ class AudioConverter:
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=300  # 5 minutos timeout
             )
             
