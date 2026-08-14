@@ -180,10 +180,10 @@ class MetadataHandler:
             
             # Agregar carátula
             if metadata.cover_path and metadata.cover_path.exists():
-                with open(metadata.cover_path, "rb") as img:
-                    img_data = img.read()
+                cover_data, cover_format = self._prepare_cover_for_m4a(metadata.cover_path)
+                if cover_data and cover_format is not None:
                     audio["covr"] = [
-                        MP4Cover(img_data, imageformat=MP4Cover.FORMAT_JPEG)
+                        MP4Cover(cover_data, imageformat=cover_format)
                     ]
             
             audio.save()
@@ -195,6 +195,53 @@ class MetadataHandler:
         except Exception as e:
             self.console.print(f"[red]Error en M4A: {e}[/red]")
             return False
+
+    def _prepare_cover_for_m4a(self, cover_path: Path):
+        """
+        Preparar carátula para incrustar en M4A.
+
+        Devuelve (datos, imageformat) usando el formato correcto según el tipo
+        de imagen. Las imágenes WEBP no son soportadas por MP4Cover, por lo que
+        se convierten a JPEG con FFmpeg. Devuelve (None, None) si falla.
+        """
+        import subprocess
+        from mutagen.mp4 import MP4Cover
+
+        suffix = cover_path.suffix.lower()
+
+        try:
+            if suffix == ".png":
+                with open(cover_path, "rb") as img:
+                    return img.read(), MP4Cover.FORMAT_PNG
+
+            if suffix in (".jpg", ".jpeg"):
+                with open(cover_path, "rb") as img:
+                    return img.read(), MP4Cover.FORMAT_JPEG
+
+            # WEBP u otro formato: convertir a JPEG con FFmpeg
+            self.console.print(f"[dim]  Convirtiendo carátula {suffix} a JPEG para M4A...[/dim]")
+            temp_jpeg = cover_path.with_name(f"{cover_path.stem}_umd_cover.jpg")
+            try:
+                result = subprocess.run(
+                    ["ffmpeg", "-y", "-i", str(cover_path), "-q:v", "2", str(temp_jpeg)],
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+                if result.returncode == 0 and temp_jpeg.exists():
+                    with open(temp_jpeg, "rb") as img:
+                        data = img.read()
+                    return data, MP4Cover.FORMAT_JPEG
+            finally:
+                if temp_jpeg.exists():
+                    try:
+                        temp_jpeg.unlink()
+                    except Exception:
+                        pass
+        except Exception as e:
+            self.console.print(f"[yellow]  ⚠ No se pudo preparar la carátula para M4A: {e}[/yellow]")
+
+        return None, None
     
     def _embed_flac(self, audio_path: Path, metadata: AudioMetadata) -> bool:
         """Incrustar metadatos en archivo FLAC usando mutagen."""
