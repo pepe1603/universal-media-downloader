@@ -54,7 +54,7 @@ Lista de problemas detectados en la CLI, separados por entorno (Termux / Termina
 ### BUG-08 🟡 `test_cookies` da falsos positivos
 - **Archivo:** `src/core/cookies.py:338-344`
 - **Descripción:** Instagram/Facebook/TikTok se prueban contra la portada (no requiere login), por lo que cookies expiradas pueden reportarse como "válidas".
-- **Solución propuesta:** Probar contra una URL autenticada o pedir al usuario una URL privada de prueba.
+- **Solución aplicada:** La prueba ahora hace una petición HTTP autenticada a una página de cuenta (YouTube `/account`, Instagram `/accounts/edit/`, Facebook `/settings`, TikTok `/upload`) y detecta redirección a login o marcadores de sesión en la respuesta. Verificado: cookies falsas se detectan como inválidas en YouTube e Instagram.
 
 ### BUG-09 🟡 Búsqueda por fecha sin validación
 - **Archivo:** `src/main.py:428-429`
@@ -104,7 +104,7 @@ Lista de problemas detectados en la CLI, separados por entorno (Termux / Termina
 | BUG-05 | Termux | `termux` | Pendiente |
 | BUG-06 | Terminal | `terminal` | Resuelto |
 | BUG-07 | Terminal | `terminal` | Resuelto |
-| BUG-08 | Terminal | `terminal` | Pendiente |
+| BUG-08 | Terminal | `terminal` | Resuelto |
 | BUG-09 | Terminal | `terminal` | Pendiente |
 | BUG-10 | Terminal | `terminal` | Pendiente |
 | BUG-11 | Terminal | `terminal` | Pendiente |
