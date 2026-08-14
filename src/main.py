@@ -33,6 +33,13 @@ from src.core.file_organizer import FileOrganizer, DestinationFolder
 from src.core.cookies import CookieManager, Browser
 from src.storage.database import Database, DownloadRecord
 
+# Forzar UTF-8 en stdout/stderr antes de crear Console()
+# Evita UnicodeEncodeError al renderizar el spinner/emoji en consolas Windows legacy (cp1252)
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
 # Crear aplicación Typer
 app = typer.Typer(help="Universal Media Downloader - Descarga contenido multimedia de múltiples plataformas")
 console = Console()
