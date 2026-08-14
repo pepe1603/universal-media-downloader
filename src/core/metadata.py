@@ -57,6 +57,10 @@ class MetadataHandler:
                 return self._embed_m4a(audio_path, metadata)
             elif ext == ".flac":
                 return self._embed_flac(audio_path, metadata)
+            elif ext == ".ogg":
+                return self._embed_ogg(audio_path, metadata)
+            elif ext == ".wav":
+                return self._embed_wav(audio_path, metadata)
             else:
                 self.console.print(f"[yellow]⚠ Metadatos no soportados para {ext}[/yellow]")
                 return False
@@ -281,4 +285,104 @@ class MetadataHandler:
             return False
         except Exception as e:
             self.console.print(f"[red]Error en FLAC: {e}[/red]")
+            return False
+
+    def _embed_ogg(self, audio_path: Path, metadata: AudioMetadata) -> bool:
+        """Incrustar metadatos en archivo OGG (Vorbis comments) usando mutagen."""
+        try:
+            import base64
+            from mutagen.oggvorbis import OggVorbis
+            from mutagen.flac import Picture
+
+            audio = OggVorbis(audio_path)
+
+            audio["title"] = metadata.title
+            audio["artist"] = metadata.artist
+            audio["album"] = metadata.album
+
+            if metadata.date:
+                audio["date"] = metadata.date
+
+            if metadata.genre:
+                audio["genre"] = metadata.genre
+
+            # Carátula: METADATA_BLOCK_PICTURE (Picture de FLAC en base64)
+            if metadata.cover_path and metadata.cover_path.exists():
+                picture = Picture()
+                picture.type = 3  # Cover (front)
+                picture.desc = "Cover"
+                picture.mime = "image/jpeg"
+                suffix = metadata.cover_path.suffix.lower()
+                if suffix == ".png":
+                    picture.mime = "image/png"
+                elif suffix == ".webp":
+                    picture.mime = "image/webp"
+
+                with open(metadata.cover_path, "rb") as img:
+                    picture.data = img.read()
+
+                audio["metadata_block_picture"] = [
+                    base64.b64encode(picture.write()).decode("ascii")
+                ]
+
+            audio.save()
+            return True
+
+        except ImportError as e:
+            self.console.print(f"[red]Error de importación: {e}[/red]")
+            return False
+        except Exception as e:
+            self.console.print(f"[red]Error en OGG: {e}[/red]")
+            return False
+
+    def _embed_wav(self, audio_path: Path, metadata: AudioMetadata) -> bool:
+        """Incrustar metadatos en archivo WAV (tags ID3) usando mutagen."""
+        try:
+            from mutagen.wave import WAVE
+            from mutagen.id3 import ID3, TIT2, TPE1, TALB, TDRC, TCON, APIC
+
+            audio = WAVE(audio_path)
+
+            if audio.tags is None:
+                audio.add_tags()
+
+            tags = audio.tags
+            tags.add(TIT2(encoding=3, text=metadata.title))
+            tags.add(TPE1(encoding=3, text=metadata.artist))
+            tags.add(TALB(encoding=3, text=metadata.album))
+
+            if metadata.date:
+                tags.add(TDRC(encoding=3, text=metadata.date))
+
+            if metadata.genre:
+                tags.add(TCON(encoding=3, text=metadata.genre))
+
+            # Carátula
+            if metadata.cover_path and metadata.cover_path.exists():
+                with open(metadata.cover_path, "rb") as img:
+                    img_data = img.read()
+
+                mime = "image/jpeg"
+                suffix = metadata.cover_path.suffix.lower()
+                if suffix == ".png":
+                    mime = "image/png"
+                elif suffix == ".webp":
+                    mime = "image/webp"
+
+                tags.add(APIC(
+                    encoding=0,  # Latin-1 para máxima compatibilidad
+                    mime=mime,
+                    type=3,  # Cover (front)
+                    desc="Cover",
+                    data=img_data
+                ))
+
+            audio.save()
+            return True
+
+        except ImportError as e:
+            self.console.print(f"[red]Error de importación: {e}[/red]")
+            return False
+        except Exception as e:
+            self.console.print(f"[red]Error en WAV: {e}[/red]")
             return False
