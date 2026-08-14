@@ -550,7 +550,7 @@ class UniversalDownloader:
             return
         
         # Crear directorio de exportación
-        export_dir = self.base_path.parent / "exports"
+        export_dir = self.base_path / "exports"
         export_dir.mkdir(parents=True, exist_ok=True)
         
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

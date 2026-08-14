@@ -265,9 +265,9 @@ Los archivos se guardan en:
 
 #### En General
 
-- Windows: C:\Users\TU_USUARIO\UniversalDownloader\exports\[plataforma]\
-- Linux/macOS: ~/UniversalDownloader/exports/[plataforma]\
-- Termux: /storage/emulated/0/UniversalDownloader/exports/[plataforma]\
+- Windows: C:\Users\TU_USUARIO\UniversalDownloader\exports\
+- Linux/macOS: ~/UniversalDownloader/exports\
+- Termux: /storage/emulated/0/Download/UniversalDownloader/exports\
 
 ## Tecnologías
 
