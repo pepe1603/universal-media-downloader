@@ -49,7 +49,7 @@ Lista de problemas detectados en la CLI, separados por entorno (Termux / Termina
 ### BUG-07 🟡 `configure_from_browser` falla si el navegador está abierto
 - **Archivo:** `src/core/cookies.py:218`
 - **Descripción:** Chrome/Firefox bloquean la base de datos de cookies en uso (Windows/Linux); la extracción falla sin mensaje claro.
-- **Solución propuesta:** Detectar el fallo y avisar "Cierra el navegador e inténtalo de nuevo"; documentar el requisito.
+- **Solución aplicada:** Se clasifica el error y se muestra un mensaje accionable: navegador en uso → "cierra el navegador"; problemas de cifrado/llave → "usa cookies.txt"; perfil no accesible → "inicia sesión o usa cookies.txt".
 
 ### BUG-08 🟡 `test_cookies` da falsos positivos
 - **Archivo:** `src/core/cookies.py:338-344`
@@ -103,7 +103,7 @@ Lista de problemas detectados en la CLI, separados por entorno (Termux / Termina
 | BUG-04 | Termux | `termux` | Resuelto |
 | BUG-05 | Termux | `termux` | Pendiente |
 | BUG-06 | Terminal | `terminal` | Resuelto |
-| BUG-07 | Terminal | `terminal` | Pendiente |
+| BUG-07 | Terminal | `terminal` | Resuelto |
 | BUG-08 | Terminal | `terminal` | Pendiente |
 | BUG-09 | Terminal | `terminal` | Pendiente |
 | BUG-10 | Terminal | `terminal` | Pendiente |
