@@ -57,29 +57,29 @@ Lista de problemas detectados en la CLI, separados por entorno (Termux / Termina
 - **Solución aplicada:** La prueba ahora hace una petición HTTP autenticada a una página de cuenta (YouTube `/account`, Instagram `/accounts/edit/`, Facebook `/settings`, TikTok `/upload`) y detecta redirección a login o marcadores de sesión en la respuesta. Verificado: cookies falsas se detectan como inválidas en YouTube e Instagram.
 
 ### BUG-09 🟡 Búsqueda por fecha sin validación
-- **Archivo:** `src/main.py:428-429`
+- **Archivo:** `src/main.py:441-470`
 - **Descripción:** Acepta cualquier texto como fecha; una fecha inválida se compara como string en SQLite y puede devolver resultados incorrectos.
-- **Solución propuesta:** Validar formato `YYYY-MM-DD` con `datetime.strptime` antes de consultar.
+- **Solución aplicada:** Nuevo helper `_ask_valid_date` que valida el formato `YYYY-MM-DD` con `datetime.strptime` antes de consultar; si es inválido pide la fecha de nuevo.
 
 ### BUG-10 🟢 Ruta de exportación inconsistente con README
-- **Archivo:** `src/main.py:525`
+- **Archivo:** `src/main.py:553`
 - **Descripción:** El código usa `base_path.parent / "exports"` (`~/exports`) mientras el README documenta `~/UniversalDownloader/exports/[plataforma]`.
-- **Solución propuesta:** Unificar a `~/UniversalDownloader/exports/` (o actualizar README).
+- **Solución aplicada:** Se unifica a `~/UniversalDownloader/exports/` y se actualiza el README (sin subcarpeta `[plataforma]`, que no existe en el código, y ruta móvil corregida a `/storage/emulated/0/Download/UniversalDownloader/exports/`).
 
 ### BUG-11 🟢 `get_failed_downloads` marca duración=0 como fallida
-- **Archivo:** `src/storage/database.py:356-363`
+- **Archivo:** `src/storage/database.py:346-405`
 - **Descripción:** Videos en vivo o de duración 0 que descargaron correctamente aparecen como errores y pueden borrarse del historial.
-- **Solución propuesta:** Considerar solo `status = 'failed'` (y `file_path` inexistente/0 KB).
+- **Solución aplicada:** Las consultas (`get_failed_downloads` y `delete_failed_downloads`) ya no consideran `duration = 0/IS NULL`; ahora usan `status = 'failed'` o `file_path = 'N/A'/''` (cómo se guardan realmente las fallidas). Verificado: un directo descargado con éxito (duración 0) ya no se marca fallido.
 
 ### BUG-12 🟢 Avisos de instalación de FFmpeg hardcodeados a Windows
-- **Archivo:** `src/core/downloader.py:62-65`
+- **Archivo:** `src/core/downloader.py:62-66`
 - **Descripción:** Siempre muestra `winget install FFmpeg` y la URL de builds de Windows, incluso en Linux/macOS.
-- **Solución propuesta:** Mostrar instrucciones según el SO detectado.
+- **Solución aplicada:** Nuevo helper `_ffmpeg_install_hints()` que muestra instrucciones según el SO (Windows: winget/gyan.dev; macOS: brew; Linux: apt/dnf/pacman; Termux: pkg).
 
 ### BUG-13 🟢 Typer importado pero no utilizado
 - **Archivo:** `src/main.py:23,37`
 - **Descripción:** `typer` se importa y se crea `app` pero el flujo real es manual; si no está instalado la app no arranca innecesariamente.
-- **Solución propuesta:** Eliminar la dependencia e import, o migrar el CLI a Typer de verdad.
+- **Solución aplicada:** Se eliminaron el import de `typer`, la instancia `app` y la dependencia de `requirements.txt`, `requirements.lock` y README. La app arranca sin typer instalado.
 
 ### BUG-14 🟢 Posible `UnicodeDecodeError` en conversión FFmpeg
 - **Archivo:** `src/core/converter.py:164`
@@ -105,10 +105,10 @@ Lista de problemas detectados en la CLI, separados por entorno (Termux / Termina
 | BUG-06 | Terminal | `terminal` | Resuelto |
 | BUG-07 | Terminal | `terminal` | Resuelto |
 | BUG-08 | Terminal | `terminal` | Resuelto |
-| BUG-09 | Terminal | `terminal` | Pendiente |
-| BUG-10 | Terminal | `terminal` | Pendiente |
-| BUG-11 | Terminal | `terminal` | Pendiente |
-| BUG-12 | Terminal | `terminal` | Pendiente |
-| BUG-13 | Terminal | `terminal` | Pendiente |
+| BUG-09 | Terminal | `terminal` | Resuelto |
+| BUG-10 | Terminal | `terminal` | Resuelto |
+| BUG-11 | Terminal | `terminal` | Resuelto |
+| BUG-12 | Terminal | `terminal` | Resuelto |
+| BUG-13 | Terminal | `terminal` | Resuelto |
 | BUG-14 | Terminal | `terminal` | Resuelto |
 | BUG-15 | Terminal | `terminal` | Resuelto |
