@@ -97,6 +97,11 @@ class UniversalDownloader:
         if self.env_info.is_mobile and self.env_info.has_storage_permission:
             # En móvil, usar carpeta Download como base
             self.base_path = self.env_info.downloads_path
+        elif self.env_info.is_mobile:
+            # En móvil sin permisos, usar almacenamiento interno (home)
+            self.base_path = self.env_info.home_path / "UniversalDownloader"
+            self.console.print("\n[yellow]⚠ Sin permisos de almacenamiento compartido.[/yellow]")
+            self.console.print("[dim]Los archivos se guardarán en el almacenamiento interno hasta que ejecutes: termux-setup-storage[/dim]")
         else:
             # En desktop, usar UniversalDownloader en home
             self.base_path = self.env_info.downloads_path
@@ -221,8 +226,8 @@ class UniversalDownloader:
                 if choice == 3 and audio_format and result.file_path:
                     self._process_audio_with_metadata(result, audio_format)
                 
-                # Preguntar si desea organizar el archivo (solo en móvil)
-                if self.env_info and self.env_info.is_mobile:
+                # Preguntar si desea organizar el archivo (solo en móvil con permisos)
+                if self.env_info and self.env_info.is_mobile and self.env_info.has_storage_permission:
                     self._ask_organize_file(result.file_path)
             else:
                 self.console.print(f"\n[red]✗ Error en la descarga[/red]")
@@ -234,6 +239,10 @@ class UniversalDownloader:
     def _ask_organize_file(self, file_path: Path):
         """Preguntar si desea organizar el archivo descargado."""
         if not self.env_info or not self.env_info.is_mobile:
+            return
+        
+        if not self.env_info.has_storage_permission:
+            self.console.print("[yellow]⚠ Organizar archivos requiere permisos de almacenamiento. Ejecuta: termux-setup-storage[/yellow]")
             return
         
         self.console.print(f"\n[cyan]¿Deseas mover el archivo a una carpeta específica?[/cyan]")
@@ -549,6 +558,10 @@ class UniversalDownloader:
             self.console.print("[yellow]Esta opción solo está disponible en dispositivos móviles[/yellow]")
             return
         
+        if not self.env_info.has_storage_permission:
+            self.console.print("[yellow]⚠ Organizar archivos requiere permisos de almacenamiento. Ejecuta: termux-setup-storage[/yellow]")
+            return
+        
         self.console.print("\n[bold cyan]═══ ORGANIZAR ARCHIVOS ═══[/bold cyan]\n")
         
         table = Table(box=box.SIMPLE)
@@ -613,7 +626,7 @@ class UniversalDownloader:
         self.console.print("\n[cyan]Organizando archivos...[/cyan]")
         
         storage_base = Path("/storage/emulated/0")
-        results = self.file_organizer.auto_organize(self.base_path)
+        results = self.file_organizer.auto_organize(self.base_path, storage_base)
         
         success_count = sum(1 for r in results if r.success)
         error_count = len(results) - success_count

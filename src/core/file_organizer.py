@@ -129,13 +129,14 @@ class FileOrganizer:
         
         return sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)
     
-    def auto_organize(self, base_path: Path) -> List[MoveResult]:
+    def auto_organize(self, base_path: Path, storage_base: Path) -> List[MoveResult]:
         """
         Organizar automáticamente archivos por tipo.
-        
+
         Args:
-            base_path: Ruta base del dispositivo
-            
+            base_path: Ruta base donde se listan los archivos descargados
+            storage_base: Raíz del almacenamiento compartido (p. ej. /storage/emulated/0)
+
         Returns:
             Lista de resultados de movimiento
         """
@@ -153,7 +154,7 @@ class FileOrganizer:
             else:
                 destination = DestinationFolder.DOWNLOADS
             
-            result = self.move_to_folder(file_path, destination, base_path.parent)
+            result = self.move_to_folder(file_path, destination, storage_base)
             results.append(result)
         
         return results
