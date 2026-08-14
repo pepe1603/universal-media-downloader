@@ -97,8 +97,8 @@ Lista de problemas detectados en la CLI, separados por entorno (Termux / Termina
 
 | Bug | Entorno | Rama | Estado |
 |-----|---------|------|--------|
-| BUG-01 | Termux | `termux` | Pendiente |
-| BUG-02 | Termux | `termux` | Pendiente |
+| BUG-01 | Termux | `termux` | Resuelto |
+| BUG-02 | Termux | `termux` | Resuelto |
 | BUG-03 | Termux | `termux` | Pendiente |
 | BUG-04 | Termux | `termux` | Pendiente |
 | BUG-05 | Termux | `termux` | Pendiente |
