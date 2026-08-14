@@ -4,7 +4,9 @@ Utiliza yt-dlp para descargar videos y audio de múltiples plataformas.
 """
 
 from pathlib import Path
-from typing import Optional
+import platform
+import os
+from typing import Optional, List
 from dataclasses import dataclass
 from enum import Enum
 from datetime import datetime
@@ -23,6 +25,38 @@ class Quality(Enum):
     MAXIMUM = "maximum"
     RECOMMENDED = "recommended"
     AUDIO = "audio"
+
+
+def _ffmpeg_install_hints() -> List[str]:
+    """Devolver líneas de ayuda para instalar FFmpeg según el SO detectado."""
+    system = platform.system().lower()
+    
+    if "termux" in os.environ.get("PREFIX", "") or Path("/data/data/com.termux").exists():
+        return [
+            "\n[yellow]Para instalar FFmpeg en Termux:[/yellow]",
+            "[dim]  pkg install ffmpeg[/dim]"
+        ]
+    
+    if system == "windows":
+        return [
+            "\n[yellow]Para instalar FFmpeg en Windows:[/yellow]",
+            "[dim]  winget install FFmpeg[/dim]",
+            "\n[yellow]O descarga manualmente desde:[/yellow]",
+            "[dim]  https://www.gyan.dev/ffmpeg/builds/[/dim]"
+        ]
+    
+    if system == "darwin":
+        return [
+            "\n[yellow]Para instalar FFmpeg en macOS:[/yellow]",
+            "[dim]  brew install ffmpeg[/dim]"
+        ]
+    
+    return [
+        "\n[yellow]Para instalar FFmpeg en Linux:[/yellow]",
+        "[dim]  sudo apt install ffmpeg   (Debian/Ubuntu)[/dim]",
+        "[dim]  sudo dnf install ffmpeg   (Fedora)[/dim]",
+        "[dim]  sudo pacman -S ffmpeg     (Arch)[/dim]"
+    ]
 
 
 @dataclass
@@ -59,10 +93,8 @@ class MediaDownloader:
         
         if not ffmpeg_status.installed:
             self.console.print(f"\n[red]✗ {ffmpeg_status.message}[/red]")
-            self.console.print("\n[yellow]Para instalar FFmpeg en Windows:[/yellow]")
-            self.console.print("[dim]  winget install FFmpeg[/dim]")
-            self.console.print("\n[yellow]O descarga manualmente desde:[/yellow]")
-            self.console.print("[dim]  https://www.gyan.dev/ffmpeg/builds/[/dim]")
+            for line in _ffmpeg_install_hints():
+                self.console.print(line)
             return False
         
         return True
