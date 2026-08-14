@@ -345,7 +345,8 @@ class Database:
     
     def get_failed_downloads(self) -> List[DownloadRecord]:
         """
-        Obtener descargas fallidas (status=failed, duración=0, o archivo inexistente/0kb).
+        Obtener descargas fallidas (status=failed o sin archivo asignado).
+        No se considera duration=0: los directos/lives descargados con éxito no son fallos.
         
         Returns:
             Lista de registros de descarga fallidos
@@ -358,8 +359,8 @@ class Database:
                    duration, status, artist, quality, error_message
             FROM downloads
             WHERE status = 'failed'
-               OR duration = 0
-               OR duration IS NULL
+               OR file_path = 'N/A'
+               OR file_path = ''
         """)
         
         records = []
@@ -396,8 +397,8 @@ class Database:
         cursor.execute("""
             DELETE FROM downloads
             WHERE status = 'failed'
-               OR duration = 0
-               OR duration IS NULL
+               OR file_path = 'N/A'
+               OR file_path = ''
         """)
         
         deleted = cursor.rowcount
