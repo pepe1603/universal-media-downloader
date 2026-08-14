@@ -84,12 +84,12 @@ Lista de problemas detectados en la CLI, separados por entorno (Termux / Termina
 ### BUG-14 🟢 Posible `UnicodeDecodeError` en conversión FFmpeg
 - **Archivo:** `src/core/converter.py:164`
 - **Descripción:** `subprocess.run(..., text=True)` usa la codificación del sistema; en Windows (cp1252) puede fallar si FFmpeg emite no-UTF-8.
-- **Solución propuesta:** Usar `encoding="utf-8", errors="replace"` en `subprocess.run`.
+- **Solución aplicada:** `encoding="utf-8", errors="replace"` en `subprocess.run`.
 
-### BUG-15 🟢 Emoji/acentos distorsionados en consolas legacy
-- **Archivo:** `src/main.py` (general)
-- **Descripción:** En consolas Windows legacy (cmd, cp437) los emoji y caracteres especiales del menú se ven como símbolos extraños.
-- **Solución propuesta:** Usar `Console(legacy_windows=True)` y/o sustituir emoji por texto en Windows.
+### BUG-15 🔴 Crash en todas las descargas en consolas Windows legacy (cp1252)
+- **Archivo:** `src/core/downloader.py:170` y `src/main.py` (creación de `Console()`)
+- **Descripción:** El `SpinnerColumn()` de la barra de progreso renderiza caracteres braille (p. ej. `\u280b`). En consolas Windows sin VT/UTF-8 (cmd, cp437/cp1252), `Console().legacy_windows` es `True` y el renderer legacy escribe el carácter a `sys.stdout` (TextIOWrapper cp1252), que lanza `UnicodeEncodeError: 'charmap' codec can't encode character`. `downloader.py:297-301` lo captura como "Error inesperado" y marca la descarga como **fallida aunque el archivo se descargó correctamente** (falso negativo que afecta a todas las descargas).
+- **Solución aplicada:** Reconfigurar `sys.stdout`/`sys.stderr` a UTF-8 al inicio de `src/main.py`, **antes** de crear `Console()` (Rich captura la codificación al construirse). Verificado: sin fix → `UnicodeEncodeError`; con fix → descarga reportada como éxito y spinner renderiza correctamente.
 
 ---
 
@@ -110,5 +110,5 @@ Lista de problemas detectados en la CLI, separados por entorno (Termux / Termina
 | BUG-11 | Terminal | `terminal` | Pendiente |
 | BUG-12 | Terminal | `terminal` | Pendiente |
 | BUG-13 | Terminal | `terminal` | Pendiente |
-| BUG-14 | Terminal | `terminal` | Pendiente |
-| BUG-15 | Terminal | `terminal` | Pendiente |
+| BUG-14 | Terminal | `terminal` | Resuelto |
+| BUG-15 | Terminal | `terminal` | Resuelto |
