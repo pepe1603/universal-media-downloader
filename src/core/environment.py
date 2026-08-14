@@ -180,10 +180,47 @@ class EnvironmentDetector:
             available_browsers=cls._detect_browsers()
         )
     
+    # Rutas de instalación estándar de navegadores en Windows (no suelen estar en PATH)
+    _WINDOWS_BROWSER_PATHS = {
+        "chrome": [
+            r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe",
+            r"%PROGRAMFILES%\Google\Chrome\Application\chrome.exe",
+            r"%PROGRAMFILES(X86)%\Google\Chrome\Application\chrome.exe",
+        ],
+        "firefox": [
+            r"%PROGRAMFILES%\Mozilla Firefox\firefox.exe",
+            r"%PROGRAMFILES(X86)%\Mozilla Firefox\firefox.exe",
+            r"%LOCALAPPDATA%\Mozilla Firefox\firefox.exe",
+        ],
+        "edge": [
+            r"%PROGRAMFILES(X86)%\Microsoft\Edge\Application\msedge.exe",
+            r"%PROGRAMFILES%\Microsoft\Edge\Application\msedge.exe",
+            r"%LOCALAPPDATA%\Microsoft\Edge\Application\msedge.exe",
+        ],
+        "opera": [
+            r"%LOCALAPPDATA%\Programs\Opera\opera.exe",
+            r"%PROGRAMFILES%\Opera\opera.exe",
+            r"%PROGRAMFILES(X86)%\Opera\opera.exe",
+        ],
+        "brave": [
+            r"%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe",
+            r"%PROGRAMFILES%\BraveSoftware\Brave-Browser\Application\brave.exe",
+            r"%PROGRAMFILES(X86)%\BraveSoftware\Brave-Browser\Application\brave.exe",
+        ],
+        "chromium": [
+            r"%LOCALAPPDATA%\Chromium\Application\chromium.exe",
+            r"%PROGRAMFILES%\Chromium\Application\chromium.exe",
+            r"%PROGRAMFILES(X86)%\Chromium\Application\chromium.exe",
+        ],
+    }
+
     @classmethod
     def _detect_browsers(cls) -> List[str]:
         """
         Detectar navegadores instalados en el sistema.
+        
+        En Windows se verifican además las rutas estándar de instalación, ya
+        que Chrome/Edge/Opera normalmente no están en el PATH.
         
         Returns:
             Lista de nombres de navegadores detectados
@@ -226,15 +263,25 @@ class EnvironmentDetector:
 
         for browser_name, executables in browser_checks.items():
             exe_list = executables.get(system, [])
+            found = False
             for exe in exe_list:
                 if system == "darwin":
                     if Path(exe).exists():
-                        browsers_found.append(browser_name)
+                        found = True
                         break
                 else:
                     if shutil.which(exe):
-                        browsers_found.append(browser_name)
+                        found = True
                         break
+            if not found and system == "windows":
+                known_paths = cls._WINDOWS_BROWSER_PATHS.get(browser_name, [])
+                for path in known_paths:
+                    expanded = os.path.expandvars(path)
+                    if expanded and Path(expanded).exists():
+                        found = True
+                        break
+            if found:
+                browsers_found.append(browser_name)
 
         return browsers_found
     
