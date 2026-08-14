@@ -35,7 +35,7 @@ Lista de problemas detectados en la CLI, separados por entorno (Termux / Termina
 ### BUG-05 🟢 Detección de Termux depende de rutas/entorno
 - **Archivo:** `src/core/environment.py:66-80`
 - **Descripción:** Si se ejecuta en otra app de terminal Android sin `/data/data/com.termux` y sin `TERMUX_VERSION`, se detecta como "Sistema desconocido" (sin soporte móvil).
-- **Solución propuesta:** Detectar también `$ANDROID_ROOT`/`$PREFIX` y la presencia de `pkg` para identificar entornos Android alternativos.
+- **Solución aplicada:** `_is_termux` ahora también devuelve `True` si existen `$ANDROID_ROOT`/`$ANDROID_DATA` (presentes en toda Android), cubriendo UserLAnd, proot y terminales Android alternativos. `_get_termux_info` usa `/storage/emulated/0`, estándar en todas ellas.
 
 ---
 
@@ -101,7 +101,7 @@ Lista de problemas detectados en la CLI, separados por entorno (Termux / Termina
 | BUG-02 | Termux | `termux` | Resuelto |
 | BUG-03 | Termux | `termux` | Resuelto |
 | BUG-04 | Termux | `termux` | Resuelto |
-| BUG-05 | Termux | `termux` | Pendiente |
+| BUG-05 | Termux | `termux` | Resuelto |
 | BUG-06 | Terminal | `terminal` | Resuelto |
 | BUG-07 | Terminal | `terminal` | Resuelto |
 | BUG-08 | Terminal | `terminal` | Resuelto |

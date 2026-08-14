@@ -64,7 +64,7 @@ class EnvironmentDetector:
     
     @classmethod
     def _is_termux(cls) -> bool:
-        """Detectar si estamos en Termux."""
+        """Detectar si estamos en Termux o un terminal Android (UserLAnd, proot, etc.)."""
         # Verificar variable de entorno específica de Termux
         if "TERMUX_VERSION" in os.environ:
             return True
@@ -75,6 +75,11 @@ class EnvironmentDetector:
         
         # Verificar comando termux-info
         if shutil.which("termux-info"):
+            return True
+        
+        # Entornos Android alternativos (UserLAnd, proot, Android nativo, etc.)
+        # Toda Android expone ANDROID_ROOT/ANDROID_DATA; PREFIX identifica Termux.
+        if "ANDROID_ROOT" in os.environ or "ANDROID_DATA" in os.environ:
             return True
         
         return False
