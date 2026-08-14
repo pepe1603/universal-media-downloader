@@ -237,9 +237,28 @@ class CookieManager:
                 self.console.print(f"[yellow]⚠ No se pudieron extraer cookies de {browser.value}[/yellow]")
                 return False
 
-        except Exception as e:
-            self.console.print(f"[red]Error al extraer cookies: {e}[/red]")
+        except yt_dlp.utils.DownloadError as e:
+            self._print_browser_cookie_error(e, browser)
             return False
+        except Exception as e:
+            self._print_browser_cookie_error(e, browser)
+            return False
+
+    def _print_browser_cookie_error(self, error: Exception, browser: Browser) -> None:
+        """Mostrar un mensaje claro y accionable cuando falla la extracción de cookies."""
+        error_lower = str(error).lower()
+
+        if any(kw in error_lower for kw in ["locked", "in use", "database is locked", "busy"]):
+            self.console.print(f"[yellow]⚠ El navegador {browser.value} está en uso.[/yellow]")
+            self.console.print("[yellow]Cierra el navegador por completo e inténtalo de nuevo.[/yellow]")
+        elif any(kw in error_lower for kw in ["keyring", "crypto", "encryption", "master key", "decrypt", "safely stored"]):
+            self.console.print(f"[yellow]⚠ No se pudieron descifrar las cookies de {browser.value}.[/yellow]")
+            self.console.print("[yellow]Usa la opción 'Cargar cookies desde archivo' con un cookies.txt exportado.[/yellow]")
+        elif any(kw in error_lower for kw in ["profile", "not found", "unable to find", "permission", "access denied"]):
+            self.console.print(f"[yellow]⚠ No se encontró un perfil accesible de {browser.value}.[/yellow]")
+            self.console.print("[yellow]Inicia sesión en el navegador o usa la opción 'Cargar cookies desde archivo'.[/yellow]")
+        else:
+            self.console.print(f"[red]Error al extraer cookies: {error}[/red]")
 
     def clear(self, platform: str = None) -> bool:
         """
