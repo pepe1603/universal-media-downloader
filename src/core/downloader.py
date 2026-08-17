@@ -93,6 +93,9 @@ class MediaDownloader:
             downloaded = d.get('downloaded_bytes', 0) or 0
             total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
             if total > 0:
+                desc = progress.tasks[task_id].description
+                if "Descargando" not in desc:
+                    progress.update(task_id, description="[cyan]Descargando...")
                 progress.update(task_id, completed=downloaded, total=total)
         elif d['status'] == 'finished':
             progress.update(task_id, description="[green]✓ Procesando...")
@@ -226,7 +229,7 @@ class MediaDownloader:
                 TimeRemainingColumn(),
                 console=self.console,
             ) as progress:
-                task = progress.add_task("[cyan]Descargando...", total=None)
+                task = progress.add_task("[cyan]Conectando...", total=None)
                 ydl_opts['progress_hooks'] = [lambda d: self._progress_hook(d, progress, task)]
                 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
