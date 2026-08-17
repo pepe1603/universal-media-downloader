@@ -13,7 +13,11 @@ from datetime import datetime
 
 import yt_dlp
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.progress import (
+    Progress, SpinnerColumn, TextColumn, BarColumn,
+    TaskProgressColumn, TransferSpeedColumn, TimeRemainingColumn,
+    DownloadColumn,
+)
 
 from src.core.dependencies import DependencyChecker
 from src.core.cookies import CookieManager
@@ -81,6 +85,17 @@ class MediaDownloader:
         self.database = database or Database()
         self.base_path = base_path
         self.cookie_manager = CookieManager(base_path, self.console, self.database)
+
+    @staticmethod
+    def _progress_hook(d, progress, task_id):
+        """Hook de progreso de yt-dlp: actualiza la barra de Rich con bytes, velocidad y ETA."""
+        if d['status'] == 'downloading':
+            downloaded = d.get('downloaded_bytes', 0) or 0
+            total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
+            if total > 0:
+                progress.update(task_id, completed=downloaded, total=total)
+        elif d['status'] == 'finished':
+            progress.update(task_id, description="[green]✓ Procesando...")
     
     def _check_dependencies(self) -> bool:
         """
@@ -206,9 +221,13 @@ class MediaDownloader:
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
                 TaskProgressColumn(),
+                DownloadColumn(),
+                TransferSpeedColumn(),
+                TimeRemainingColumn(),
                 console=self.console,
             ) as progress:
                 task = progress.add_task("[cyan]Descargando...", total=None)
+                ydl_opts['progress_hooks'] = [lambda d: self._progress_hook(d, progress, task)]
                 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     # Obtener información del video
