@@ -118,7 +118,7 @@ class MediaDownloader:
         Returns:
             Diccionario con opciones de yt-dlp
         """
-        output_template = str(output_path / "%(title)s.%(ext)s")
+        output_template = str(output_path / "%(title).200s.%(ext)s")
         
         opts = {
             'outtmpl': output_template,
@@ -129,6 +129,8 @@ class MediaDownloader:
             'fragment_retries': 10,
             'skip_unavailable_fragments': True,
             'no_check_certificate': True,
+            'restrictfilenames': True,
+            'windowsfilenames': True,
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         }
         
