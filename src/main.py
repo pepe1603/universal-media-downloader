@@ -4,6 +4,8 @@ Universal Media Downloader (UMD)
 CLI multiplataforma para descargar contenido multimedia.
 """
 
+import logging
+import os
 import sys
 from pathlib import Path
 
@@ -31,6 +33,7 @@ from src.core.environment import EnvironmentDetector, EnvironmentInfo, Environme
 from src.core.file_organizer import FileOrganizer, DestinationFolder
 from src.core.cookies import CookieManager, Browser
 from src.storage.database import Database, DownloadRecord
+from src.ui.validation import normalize_url, normalize_user_path, normalize_username
 
 # Forzar UTF-8 en stdout/stderr antes de crear Console()
 # Evita UnicodeEncodeError al renderizar el spinner/emoji en consolas Windows legacy (cp1252)
@@ -151,10 +154,11 @@ class UniversalDownloader:
         """Menú de descarga."""
         self.console.print("\n[bold cyan]═══ DESCARGAR CONTENIDO ═══[/bold cyan]\n")
         
-        url = Prompt.ask("Ingrese la URL del contenido")
-        
+        raw_url = Prompt.ask("Ingrese la URL del contenido")
+        url = normalize_url(raw_url)
+
         if not url:
-            self.console.print("[yellow]⚠ URL no válida[/yellow]")
+            self.console.print("[yellow]⚠ URL no válida. Debe ser un enlace http(s), p. ej. https://youtu.be/...[/yellow]")
             return
         
         # Detectar plataforma
@@ -238,8 +242,10 @@ class UniversalDownloader:
                 self.console.print(f"[red]{result.error_message}[/red]")
         
         else:
+            supported = ", ".join(PlatformDetector.get_supported_platforms())
             self.console.print(f"[red]✗[/red] {platform_info.message}")
-    
+            self.console.print(f"[dim]Plataformas soportadas: {supported}[/dim]")
+
     def _ask_organize_file(self, file_path: Path):
         """Preguntar si desea organizar el archivo descargado."""
         if not self.env_info or not self.env_info.is_mobile:
@@ -703,10 +709,12 @@ class UniversalDownloader:
     def change_user(self):
         """Cambiar usuario."""
         self.console.print("\n[bold cyan]═══ CAMBIAR USUARIO ═══[/bold cyan]\n")
-        new_username = Prompt.ask("Ingrese el nuevo nombre de usuario")
+        new_username = normalize_username(Prompt.ask("Ingrese el nuevo nombre de usuario"))
         if new_username:
             self.username = new_username
             self.console.print(f"[green]✓[/green] Usuario cambiado a: [bold]{self.username}[/bold]")
+        else:
+            self.console.print("[yellow]⚠ Nombre no válido (máx. 32 caracteres, sin / \\ ni saltos de línea)[/yellow]")
     
     def settings(self):
         """Configuración."""
@@ -866,13 +874,13 @@ class UniversalDownloader:
         else:
             default_path = ""
         
-        file_path = Prompt.ask("\nRuta al archivo cookies.txt", default=default_path)
-        
+        file_path = normalize_user_path(Prompt.ask("\nRuta al archivo cookies.txt", default=default_path))
+
         if not file_path:
             self.console.print("[yellow]⚠ No se proporcionó una ruta[/yellow]")
             return
-        
-        self.cookie_manager.configure_file(platform, Path(file_path))
+
+        self.cookie_manager.configure_file(platform, file_path)
     
     def _configure_browser_cookies(self):
         """Configurar cookies extrayéndolas del navegador para una plataforma."""
@@ -947,7 +955,11 @@ class UniversalDownloader:
         if not self.cookie_manager.has_cookies(platform):
             self.console.print(f"\n[yellow]⚠ No hay cookies configuradas para {platform}[/yellow]")
             return
-        
+
+        if not Confirm.ask(f"\n¿Eliminar las cookies de [bold]{platform}[/bold]?", default=False):
+            self.console.print("[dim]Operación cancelada[/dim]")
+            return
+
         self.cookie_manager.clear(platform)
     
     def cleanup_failed_downloads(self):
@@ -1045,18 +1057,27 @@ class UniversalDownloader:
                 Prompt.ask("\nPresione [bold]Enter[/bold] para continuar")
 
 
-def main():
+def _configure_logging() -> None:
+    """Configura logging: silencioso por defecto; UMD_DEBUG=1 lo envía a stderr."""
+    level = logging.DEBUG if os.environ.get("UMD_DEBUG") else logging.CRITICAL
+    logging.basicConfig(level=level, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+
+
+def main() -> None:
     """Punto de entrada principal."""
+    _configure_logging()
     try:
         downloader = UniversalDownloader()
         downloader.run()
     except KeyboardInterrupt:
         console.print("\n[yellow]Aplicación interrumpida por el usuario[/yellow]")
         sys.exit(0)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - frontera de la aplicación
+        logging.getLogger(__name__).exception("Error fatal")
         console.print(f"\n[red]Error: {e}[/red]")
-        import traceback
-        traceback.print_exc()
+        if os.environ.get("UMD_DEBUG"):
+            raise
+        console.print("[dim]Ejecuta con UMD_DEBUG=1 para ver el detalle técnico[/dim]")
         sys.exit(1)
 
 
