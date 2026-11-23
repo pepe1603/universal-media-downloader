@@ -3,17 +3,21 @@ Verificación de dependencias del sistema.
 Comprueba que las herramientas necesarias estén instaladas.
 """
 
+import logging
 import shutil
 import subprocess
-from typing import Optional
 from dataclasses import dataclass
+from typing import Optional
 
 from rich.console import Console
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
 class DependencyStatus:
     """Estado de una dependencia."""
+
     name: str
     installed: bool
     version: Optional[str] = None
@@ -64,7 +68,8 @@ class DependencyChecker:
                     message="FFmpeg está instalado correctamente"
                 )
         
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError, IndexError) as e:
+            logger.warning("No se pudo verificar FFmpeg: %s", e)
             return DependencyStatus(
                 name="FFmpeg",
                 installed=False,
@@ -117,7 +122,7 @@ class DependencyChecker:
         }
     
     @classmethod
-    def show_status(cls, console: Optional[Console] = None):
+    def show_status(cls, console: Optional[Console] = None) -> None:
         """Mostrar estado de todas las dependencias."""
         if console is None:
             console = Console()
