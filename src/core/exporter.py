@@ -4,19 +4,24 @@ Exporta el historial de descargas a diferentes formatos.
 """
 
 import json
+import logging
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
-from datetime import datetime
 
 from rich.console import Console
 
 from src.storage.database import DownloadRecord
 
+logger = logging.getLogger(__name__)
+
+EXPORT_ERRORS = (OSError, TypeError, ValueError)
+
 
 class HistoryExporter:
     """Exportador de historial de descargas."""
     
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(self, console: Optional[Console] = None) -> None:
         self.console = console or Console()
     
     def export_to_txt(
@@ -59,7 +64,8 @@ class HistoryExporter:
             
             return True
         
-        except Exception as e:
+        except EXPORT_ERRORS as e:
+            logger.exception("Fallo al exportar a TXT: %s", output_path)
             self.console.print(f"[red]Error al exportar a TXT: {e}[/red]")
             return False
     
@@ -100,7 +106,8 @@ class HistoryExporter:
             
             return True
         
-        except Exception as e:
+        except EXPORT_ERRORS as e:
+            logger.exception("Fallo al exportar a Markdown: %s", output_path)
             self.console.print(f"[red]Error al exportar a Markdown: {e}[/red]")
             return False
     
@@ -146,7 +153,8 @@ class HistoryExporter:
             
             return True
         
-        except Exception as e:
+        except EXPORT_ERRORS as e:
+            logger.exception("Fallo al exportar a JSON: %s", output_path)
             self.console.print(f"[red]Error al exportar a JSON: {e}[/red]")
             return False
     
