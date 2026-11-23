@@ -6,14 +6,17 @@ Detecta automáticamente si se ejecuta en Termux, Windows, Linux o macOS.
 import os
 import platform
 import shutil
-from pathlib import Path
-from typing import Optional, List
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+from typing import List, Optional
+
+from rich.console import Console
 
 
 class EnvironmentType(Enum):
     """Tipos de entorno detectados."""
+
     TERMUX = "termux"
     WINDOWS = "windows"
     LINUX = "linux"
@@ -24,6 +27,7 @@ class EnvironmentType(Enum):
 @dataclass
 class EnvironmentInfo:
     """Información del entorno detectado."""
+
     env_type: EnvironmentType
     is_mobile: bool
     home_path: Path
@@ -291,21 +295,21 @@ class EnvironmentDetector:
         return browsers_found
     
     @classmethod
-    def show_info(cls, info: EnvironmentInfo, console) -> None:
+    def show_info(cls, info: EnvironmentInfo, console: Console) -> None:
         """Mostrar información del entorno detectado."""
-        console.print(f"\n[bold cyan]Entorno detectado:[/bold cyan]")
+        console.print("\n[bold cyan]Entorno detectado:[/bold cyan]")
         console.print(f"  Tipo: [green]{info.display_name}[/green]")
         console.print(f"  Home: [dim]{info.home_path}[/dim]")
         
         if info.is_mobile:
             if info.has_storage_permission:
-                console.print(f"  [green]✓ Permiso de almacenamiento: Concedido[/green]")
+                console.print("  [green]✓ Permiso de almacenamiento: Concedido[/green]")
                 console.print(f"  Descargas: [dim]{info.downloads_path}[/dim]")
                 console.print(f"  Música: [dim]{info.music_path}[/dim]")
                 console.print(f"  Videos: [dim]{info.videos_path}[/dim]")
             else:
-                console.print(f"  [red]✗ Permiso de almacenamiento: No concedido[/red]")
-                console.print(f"  [yellow]Ejecuta: termux-setup-storage[/yellow]")
+                console.print("  [red]✗ Permiso de almacenamiento: No concedido[/red]")
+                console.print("  [yellow]Ejecuta: termux-setup-storage[/yellow]")
         
         if info.available_browsers:
             console.print(f"  Navegadores detectados: [dim]{', '.join(info.available_browsers)}[/dim]")
