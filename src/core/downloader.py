@@ -3,29 +3,39 @@ Módulo de descarga de contenido multimedia.
 Utiliza yt-dlp para descargar videos y audio de múltiples plataformas.
 """
 
-from pathlib import Path
-import platform
+import logging
 import os
-from typing import Optional, List
+import platform
 from dataclasses import dataclass
-from enum import Enum
 from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Any, List, Optional
 
 import yt_dlp
 from rich.console import Console
 from rich.progress import (
-    Progress, SpinnerColumn, TextColumn, BarColumn,
-    TaskProgressColumn, TransferSpeedColumn, TimeRemainingColumn,
+    BarColumn,
     DownloadColumn,
+    Progress,
+    SpinnerColumn,
+    TaskID,
+    TaskProgressColumn,
+    TextColumn,
+    TimeRemainingColumn,
+    TransferSpeedColumn,
 )
 
-from src.core.dependencies import DependencyChecker
 from src.core.cookies import CookieManager
+from src.core.dependencies import DependencyChecker
 from src.storage.database import Database, DownloadRecord, DownloadStatus
+
+logger = logging.getLogger(__name__)
 
 
 class Quality(Enum):
     """Calidades de descarga disponibles."""
+
     MAXIMUM = "maximum"
     RECOMMENDED = "recommended"
     AUDIO = "audio"
@@ -66,6 +76,7 @@ def _ffmpeg_install_hints() -> List[str]:
 @dataclass
 class DownloadResult:
     """Resultado de una descarga."""
+
     success: bool
     file_path: Optional[Path] = None
     title: Optional[str] = None
@@ -80,14 +91,14 @@ class DownloadResult:
 class MediaDownloader:
     """Descargador de contenido multimedia usando yt-dlp."""
     
-    def __init__(self, base_path: Path, console: Optional[Console] = None, database: Optional[Database] = None):
+    def __init__(self, base_path: Path, console: Optional[Console] = None, database: Optional[Database] = None) -> None:
         self.console = console or Console()
         self.database = database or Database()
         self.base_path = base_path
         self.cookie_manager = CookieManager(base_path, self.console, self.database)
 
     @staticmethod
-    def _progress_hook(d, progress, task_id):
+    def _progress_hook(d: dict[str, Any], progress: Progress, task_id: TaskID) -> None:
         """Hook de progreso de yt-dlp: actualiza la barra de Rich con bytes, velocidad y ETA."""
         if d['status'] == 'downloading':
             downloaded = d.get('downloaded_bytes', 0) or 0
@@ -306,6 +317,7 @@ class MediaDownloader:
             )
         
         except yt_dlp.utils.DownloadError as e:
+            logger.warning("Descarga fallida (%s): %s", platform, e)
             error_msg = str(e)
             error_lower = error_msg.lower()
             
@@ -350,7 +362,8 @@ class MediaDownloader:
                 success=False,
                 error_message=full_error_msg
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - los extractores de yt-dlp pueden lanzar cualquier error
+            logger.exception("Error inesperado al descargar %s", url)
             return DownloadResult(
                 success=False,
                 error_message=f"Error inesperado: {str(e)}"
@@ -382,6 +395,7 @@ class MediaDownloader:
                 info = ydl.extract_info(url, download=False)
                 return info
         
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - los extractores de yt-dlp pueden lanzar cualquier error
+            logger.warning("No se pudo obtener información de %s: %s", url, e)
             self.console.print(f"[red]Error al obtener información: {e}[/red]")
             return None
