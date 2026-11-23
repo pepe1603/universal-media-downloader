@@ -91,6 +91,26 @@ Lista de problemas detectados en la CLI, separados por entorno (Termux / Termina
 - **Descripción:** El `SpinnerColumn()` de la barra de progreso renderiza caracteres braille (p. ej. `\u280b`). En consolas Windows sin VT/UTF-8 (cmd, cp437/cp1252), `Console().legacy_windows` es `True` y el renderer legacy escribe el carácter a `sys.stdout` (TextIOWrapper cp1252), que lanza `UnicodeEncodeError: 'charmap' codec can't encode character`. `downloader.py:297-301` lo captura como "Error inesperado" y marca la descarga como **fallida aunque el archivo se descargó correctamente** (falso negativo que afecta a todas las descargas).
 - **Solución aplicada:** Reconfigurar `sys.stdout`/`sys.stderr` a UTF-8 al inicio de `src/main.py`, **antes** de crear `Console()` (Rich captura la codificación al construirse). Verificado: sin fix → `UnicodeEncodeError`; con fix → descarga reportada como éxito y spinner renderiza correctamente.
 
+### BUG-16 🟡 Path traversal en nombre de plataforma de cookies
+- **Archivo:** `src/core/cookies.py` (`get_cookie_path`)
+- **Descripción:** El nombre de plataforma se concatenaba sin validar (`cookies_dir / f"{platform}.txt"`); un valor como `../x` permitía escribir o borrar fuera de `cookies/`.
+- **Solución aplicada:** Validación con regex `[a-z0-9_-]{1,32}` (lanza `ValueError`). Además las cookies copiadas se guardan con permisos `0600`.
+
+### BUG-17 🟡 Detección de plataforma por subcadena (spoofing de URL)
+- **Archivo:** `src/platforms/detector.py`
+- **Descripción:** `domain in url` aceptaba `https://evil.com/?u=youtube.com` o `youtube.com.evil.com` como YouTube (y enviaba cookies de esa plataforma a yt-dlp).
+- **Solución aplicada:** Se compara el hostname parseado (igual al dominio o subdominio).
+
+### BUG-18 🟢 `subprocess` sin codificación explícita y rutas relativas a FFmpeg
+- **Archivo:** `src/core/dependencies.py`, `src/core/metadata.py`, `src/core/converter.py`
+- **Descripción:** Llamadas sin `encoding="utf-8", errors="replace"`; rutas relativas que empiezan con `-` podían interpretarse como opciones de FFmpeg.
+- **Solución aplicada:** Codificación explícita y rutas absolutas (`Path.resolve()`).
+
+### BUG-19 🟢 Entradas de CLI sin validar y borrado de cookies sin confirmación
+- **Archivo:** `src/main.py`
+- **Descripción:** URL, nombre de usuario y ruta de cookies sin normalizar; `Eliminar cookies de una plataforma` no pedía confirmación; errores fatales imprimían traceback siempre.
+- **Solución aplicada:** `src/ui/validation.py`, confirmación previa, traceback solo con `UMD_DEBUG=1`.
+
 ---
 
 ## Estado de resolución
@@ -112,3 +132,7 @@ Lista de problemas detectados en la CLI, separados por entorno (Termux / Termina
 | BUG-13 | Terminal | `terminal` | Resuelto |
 | BUG-14 | Terminal | `terminal` | Resuelto |
 | BUG-15 | Terminal | `terminal` | Resuelto |
+| BUG-16 | Terminal | `develop` | Resuelto |
+| BUG-17 | Terminal | `develop` | Resuelto |
+| BUG-18 | Terminal | `develop` | Resuelto |
+| BUG-19 | Terminal | `develop` | Resuelto |
