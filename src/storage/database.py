@@ -293,6 +293,30 @@ class Database:
 
         return None
 
+    def find_successful_download(self, url: str) -> Optional[DownloadRecord]:
+        """
+        Buscar la descarga exitosa más reciente de una URL.
+
+        Args:
+            url: URL exacta registrada al descargar
+
+        Returns:
+            Registro de descarga o None
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT id FROM downloads
+            WHERE url = ? AND status = ?
+            ORDER BY id DESC LIMIT 1
+        """, (url, DownloadStatus.SUCCESS.value))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        return self.get_download_by_id(row[0]) if row else None
+
     def get_total_downloads(self) -> int:
         """Obtener el total de descargas."""
         conn = sqlite3.connect(self.db_path)

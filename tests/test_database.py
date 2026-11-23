@@ -18,6 +18,14 @@ def test_add_and_get_by_id(db):
     assert db.get_download_by_id(9999) is None
 
 
+def test_find_successful_download(db):
+    db.add_download(_record(url="https://x/1", status=DownloadStatus.FAILED.value))
+    assert db.find_successful_download("https://x/1") is None
+    rid = db.add_download(_record(url="https://x/1"))
+    assert db.find_successful_download("https://x/1").id == rid
+    assert db.find_successful_download("https://x/other") is None
+
+
 def test_recent_and_total(db):
     for i in range(3):
         db.add_download(_record(title=f"t{i}"))
