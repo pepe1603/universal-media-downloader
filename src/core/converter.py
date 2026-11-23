@@ -3,8 +3,9 @@ Módulo de conversión de audio.
 Convierte archivos de audio a diferentes formatos usando FFmpeg.
 """
 
-import subprocess
+import logging
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Optional
 from dataclasses import dataclass
@@ -12,9 +13,12 @@ from enum import Enum
 
 from rich.console import Console
 
+logger = logging.getLogger(__name__)
+
 
 class AudioFormat(Enum):
     """Formatos de audio soportados."""
+
     MP3 = "mp3"
     M4A = "m4a"
     FLAC = "flac"
@@ -49,6 +53,7 @@ class AudioFormat(Enum):
 @dataclass
 class ConversionResult:
     """Resultado de una conversión."""
+
     success: bool
     output_path: Optional[Path] = None
     error_message: Optional[str] = None
@@ -57,9 +62,9 @@ class ConversionResult:
 class AudioConverter:
     """Conversor de audio usando FFmpeg."""
     
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(self, console: Optional[Console] = None) -> None:
         self.console = console or Console()
-    
+
     def _check_ffmpeg(self) -> bool:
         """Verificar que FFmpeg esté disponible."""
         return shutil.which("ffmpeg") is not None
@@ -183,11 +188,13 @@ class AudioConverter:
                 )
         
         except subprocess.TimeoutExpired:
+            logger.warning("Timeout al convertir %s", input_path)
             return ConversionResult(
                 success=False,
                 error_message="Tiempo de conversión excedido"
             )
-        except Exception as e:
+        except OSError as e:
+            logger.exception("Fallo al convertir %s", input_path)
             return ConversionResult(
                 success=False,
                 error_message=f"Error inesperado: {str(e)}"
