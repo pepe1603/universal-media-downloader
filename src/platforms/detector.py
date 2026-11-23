@@ -4,6 +4,7 @@ Analiza URLs para identificar la plataforma de origen.
 """
 
 from typing import Optional
+from urllib.parse import urlparse
 from dataclasses import dataclass
 from enum import Enum
 
@@ -70,12 +71,12 @@ class PlatformDetector:
                 message="URL vacía"
             )
         
-        url_clean = url.strip().lower()
-        
-        # Buscar coincidencias
+        hostname = cls._extract_hostname(url)
+
+        # Buscar coincidencias exactas de dominio o subdominio
         for platform, config in cls.PATTERNS.items():
             for domain in config["domains"]:
-                if domain in url_clean:
+                if hostname == domain or hostname.endswith(f".{domain}"):
                     return PlatformInfo(
                         platform=platform,
                         name=config["name"],
@@ -92,6 +93,17 @@ class PlatformDetector:
             message="Plataforma no soportada"
         )
     
+    @staticmethod
+    def _extract_hostname(url: str) -> str:
+        """Extraer el hostname en minúsculas de una URL (con o sin esquema)."""
+        url_clean = url.strip().lower()
+        if "://" not in url_clean:
+            url_clean = f"//{url_clean}"
+        try:
+            return urlparse(url_clean).hostname or ""
+        except ValueError:
+            return ""
+
     @classmethod
     def get_supported_platforms(cls) -> list[str]:
         """Obtener lista de plataformas soportadas."""
