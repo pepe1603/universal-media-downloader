@@ -2,7 +2,7 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
-## [Unreleased]
+## [0.1.0] - 2026-11-22
 
 ### Added
 - Suite de tests (pytest) para detector, environment, file_organizer, database, cookies, converter, metadata, exporter, dependencies, downloader y validación (cobertura `src/core` ≈ 73%).
