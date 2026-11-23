@@ -44,13 +44,13 @@ class Quality(Enum):
 def _ffmpeg_install_hints() -> List[str]:
     """Devolver líneas de ayuda para instalar FFmpeg según el SO detectado."""
     system = platform.system().lower()
-    
+
     if "termux" in os.environ.get("PREFIX", "") or Path("/data/data/com.termux").exists():
         return [
             "\n[yellow]Para instalar FFmpeg en Termux:[/yellow]",
             "[dim]  pkg install ffmpeg[/dim]"
         ]
-    
+
     if system == "windows":
         return [
             "\n[yellow]Para instalar FFmpeg en Windows:[/yellow]",
@@ -58,13 +58,13 @@ def _ffmpeg_install_hints() -> List[str]:
             "\n[yellow]O descarga manualmente desde:[/yellow]",
             "[dim]  https://www.gyan.dev/ffmpeg/builds/[/dim]"
         ]
-    
+
     if system == "darwin":
         return [
             "\n[yellow]Para instalar FFmpeg en macOS:[/yellow]",
             "[dim]  brew install ffmpeg[/dim]"
         ]
-    
+
     return [
         "\n[yellow]Para instalar FFmpeg en Linux:[/yellow]",
         "[dim]  sudo apt install ffmpeg   (Debian/Ubuntu)[/dim]",
@@ -90,7 +90,7 @@ class DownloadResult:
 
 class MediaDownloader:
     """Descargador de contenido multimedia usando yt-dlp."""
-    
+
     def __init__(self, base_path: Path, console: Optional[Console] = None, database: Optional[Database] = None) -> None:
         self.console = console or Console()
         self.database = database or Database()
@@ -110,24 +110,24 @@ class MediaDownloader:
                 progress.update(task_id, completed=downloaded, total=total)
         elif d['status'] == 'finished':
             progress.update(task_id, description="[green]✓ Procesando...")
-    
+
     def _check_dependencies(self) -> bool:
         """
         Verificar que las dependencias necesarias estén instaladas.
-        
+
         Returns:
             True si todas las dependencias están disponibles
         """
         ffmpeg_status = DependencyChecker.check_ffmpeg()
-        
+
         if not ffmpeg_status.installed:
             self.console.print(f"\n[red]✗ {ffmpeg_status.message}[/red]")
             for line in _ffmpeg_install_hints():
                 self.console.print(line)
             return False
-        
+
         return True
-    
+
     def _get_ydl_opts(
         self,
         quality: Quality,
@@ -137,18 +137,18 @@ class MediaDownloader:
     ) -> dict:
         """
         Obtener opciones de yt-dlp según la calidad.
-        
+
         Args:
             quality: Calidad de descarga
             output_path: Ruta de salida
             platform: Nombre de la plataforma
             download_thumbnail: Si debe descargar la miniatura
-            
+
         Returns:
             Diccionario con opciones de yt-dlp
         """
         output_template = str(output_path / "%(title).200s.%(ext)s")
-        
+
         opts = {
             'outtmpl': output_template,
             'quiet': True,
@@ -162,22 +162,22 @@ class MediaDownloader:
             'windowsfilenames': True,
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         }
-        
+
         if download_thumbnail:
             opts['writethumbnail'] = True
-        
+
         if quality == Quality.MAXIMUM:
             opts.update({
                 'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                 'merge_output_format': 'mp4',
             })
-        
+
         elif quality == Quality.RECOMMENDED:
             opts.update({
                 'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best',
                 'merge_output_format': 'mp4',
             })
-        
+
         elif quality == Quality.AUDIO:
             opts.update({
                 'format': 'bestaudio/best',
@@ -187,12 +187,12 @@ class MediaDownloader:
                     'preferredquality': '192',
                 }],
             })
-        
+
         cookie_opts = self.cookie_manager.get_ydl_opts(platform)
         opts.update(cookie_opts)
-        
+
         return opts
-    
+
     def download(
         self,
         url: str,
@@ -203,14 +203,14 @@ class MediaDownloader:
     ) -> DownloadResult:
         """
         Descargar contenido desde una URL.
-        
+
         Args:
             url: URL del contenido
             quality: Calidad de descarga
             output_path: Ruta base de salida
             platform: Nombre de la plataforma
             download_thumbnail: Si debe descargar la miniatura
-            
+
         Returns:
             DownloadResult con el resultado de la descarga
         """
@@ -220,15 +220,15 @@ class MediaDownloader:
                 success=False,
                 error_message="FFmpeg no está instalado"
             )
-        
+
         try:
             # Crear directorio de la plataforma
             platform_path = output_path / platform.lower()
             platform_path.mkdir(parents=True, exist_ok=True)
-            
+
             # Obtener opciones de yt-dlp
             ydl_opts = self._get_ydl_opts(quality, platform_path, platform, download_thumbnail)
-            
+
             # Descargar con barra de progreso
             with Progress(
                 SpinnerColumn(),
@@ -242,34 +242,34 @@ class MediaDownloader:
             ) as progress:
                 task = progress.add_task("[cyan]Conectando...", total=None)
                 ydl_opts['progress_hooks'] = [lambda d: self._progress_hook(d, progress, task)]
-                
+
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     # Obtener información del video
                     info = ydl.extract_info(url, download=True)
-                    
+
                     if info:
                         title = info.get('title', 'Sin título')
                         duration = info.get('duration', 0)
                         artist = info.get('uploader', info.get('channel', 'Desconocido'))
                         upload_date = info.get('upload_date', '')
-                        
+
                         # Formatear fecha
                         formatted_date = ""
                         if upload_date and len(upload_date) >= 8:
                             formatted_date = f"{upload_date[:4]}-{upload_date[4:6]}-{upload_date[6:8]}"
-                        
+
                         # Obtener la ruta real del archivo descargado
                         ext = 'mp3' if quality == Quality.AUDIO else 'mp4'
                         filename = ydl.prepare_filename(info)
-                        
+
                         # Si es audio, cambiar la extensión a mp3
                         if quality == Quality.AUDIO:
                             filename = Path(filename).with_suffix('.mp3')
                         else:
                             filename = Path(filename)
-                        
+
                         file_path = filename
-                        
+
                         # Buscar miniatura descargada
                         thumbnail_path = None
                         if download_thumbnail:
@@ -280,9 +280,9 @@ class MediaDownloader:
                                 if potential_thumb.exists():
                                     thumbnail_path = potential_thumb
                                     break
-                        
+
                         progress.update(task, completed=100, description="[green]✓ Descarga completada")
-                        
+
                         # Guardar en base de datos
                         record = DownloadRecord(
                             id=None,
@@ -297,9 +297,9 @@ class MediaDownloader:
                             artist=artist,
                             quality=quality.value
                         )
-                        
+
                         record_id = self.database.add_download(record)
-                        
+
                         return DownloadResult(
                             success=True,
                             file_path=file_path,
@@ -310,24 +310,24 @@ class MediaDownloader:
                             thumbnail_path=thumbnail_path,
                             record_id=record_id
                         )
-            
+
             return DownloadResult(
                 success=False,
                 error_message="No se pudo obtener información del video"
             )
-        
+
         except yt_dlp.utils.DownloadError as e:
             logger.warning("Descarga fallida (%s): %s", platform, e)
             error_msg = str(e)
             error_lower = error_msg.lower()
-            
+
             auth_keywords = ["login", "sign in", "private", "401", "authentication", "age"]
             is_auth_error = any(kw in error_lower for kw in auth_keywords)
-            
+
             is_403 = "403" in error_msg or "forbidden" in error_lower
-            
+
             suggestion = ""
-            
+
             if is_403:
                 suggestion = (
                     "\n\n💡 Error 403 (Forbidden). Posibles causas:\n"
@@ -341,9 +341,9 @@ class MediaDownloader:
                     "\n\n💡 Este contenido requiere autenticación. "
                     "Configura cookies en: Configuración > Gestionar cookies"
                 )
-            
+
             full_error_msg = f"Error de descarga: {error_msg}{suggestion}"
-            
+
             record = DownloadRecord(
                 id=None,
                 date=datetime.now().strftime('%Y-%m-%d'),
@@ -357,7 +357,7 @@ class MediaDownloader:
                 error_message=str(e)
             )
             self.database.add_download(record)
-            
+
             return DownloadResult(
                 success=False,
                 error_message=full_error_msg
@@ -368,15 +368,15 @@ class MediaDownloader:
                 success=False,
                 error_message=f"Error inesperado: {str(e)}"
             )
-    
+
     def get_video_info(self, url: str, platform: str = None) -> Optional[dict]:
         """
         Obtener información de un video sin descargarlo.
-        
+
         Args:
             url: URL del video
             platform: Nombre de la plataforma (opcional)
-            
+
         Returns:
             Diccionario con información del video o None
         """
@@ -386,15 +386,15 @@ class MediaDownloader:
                 'no_warnings': True,
                 'extract_flat': False,
             }
-            
+
             if platform:
                 cookie_opts = self.cookie_manager.get_ydl_opts(platform)
                 ydl_opts.update(cookie_opts)
-            
+
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
                 return info
-        
+
         except Exception as e:  # noqa: BLE001 - los extractores de yt-dlp pueden lanzar cualquier error
             logger.warning("No se pudo obtener información de %s: %s", url, e)
             self.console.print(f"[red]Error al obtener información: {e}[/red]")

@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-
 from src.core.environment import EnvironmentDetector, EnvironmentInfo, EnvironmentType
 
 

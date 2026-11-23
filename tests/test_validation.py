@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-
 from src.ui.validation import normalize_url, normalize_user_path, normalize_username
 
 

@@ -4,11 +4,10 @@ Gestiona el historial de descargas y configuración.
 """
 
 import sqlite3
-from pathlib import Path
-from typing import Optional, List
 from dataclasses import dataclass
-from datetime import datetime
 from enum import Enum
+from pathlib import Path
+from typing import List, Optional
 
 from rich.console import Console
 
@@ -39,28 +38,28 @@ class DownloadRecord:
 
 class Database:
     """Gestor de base de datos SQLite."""
-    
+
     def __init__(self, db_path: Optional[Path] = None, console: Optional[Console] = None):
         self.console = console or Console()
-        
+
         if db_path is None:
             # Ruta por defecto en el directorio del usuario
             db_path = Path.home() / "UniversalDownloader" / "umd.db"
-        
+
         self.db_path = db_path
         self._ensure_db_directory()
         self._init_database()
         self._migrate_database()
-    
+
     def _ensure_db_directory(self):
         """Asegurar que el directorio de la base de datos existe."""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     def _init_database(self):
         """Inicializar la base de datos con las tablas necesarias."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         # Tabla de descargas
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS downloads (
@@ -79,7 +78,7 @@ class Database:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
         # Tabla de configuración
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS settings (
@@ -88,7 +87,7 @@ class Database:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
         # Tabla de usuarios
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -100,23 +99,23 @@ class Database:
                 last_login TIMESTAMP
             )
         """)
-        
+
         conn.commit()
         conn.close()
-    
+
     def add_download(self, record: DownloadRecord) -> int:
         """
         Agregar un registro de descarga.
-        
+
         Args:
             record: Registro de descarga
-            
+
         Returns:
             ID del registro insertado
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             INSERT INTO downloads (
                 date, platform, title, url, format, file_path,
@@ -135,26 +134,26 @@ class Database:
             record.quality,
             record.error_message
         ))
-        
+
         record_id = cursor.lastrowid
         conn.commit()
         conn.close()
-        
+
         return record_id
-    
+
     def get_recent_downloads(self, limit: int = 20) -> List[DownloadRecord]:
         """
         Obtener descargas recientes.
-        
+
         Args:
             limit: Número máximo de registros
-            
+
         Returns:
             Lista de registros de descarga
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             SELECT id, date, platform, title, url, format, file_path,
                    duration, status, artist, quality, error_message
@@ -162,7 +161,7 @@ class Database:
             ORDER BY created_at DESC
             LIMIT ?
         """, (limit,))
-        
+
         records = []
         for row in cursor.fetchall():
             records.append(DownloadRecord(
@@ -179,10 +178,10 @@ class Database:
                 quality=row[10],
                 error_message=row[11]
             ))
-        
+
         conn.close()
         return records
-    
+
     def search_downloads(
         self,
         platform: Optional[str] = None,
@@ -192,19 +191,19 @@ class Database:
     ) -> List[DownloadRecord]:
         """
         Buscar descargas con filtros.
-        
+
         Args:
             platform: Filtrar por plataforma
             date_from: Fecha desde (YYYY-MM-DD)
             date_to: Fecha hasta (YYYY-MM-DD)
             title_contains: Texto en el título
-            
+
         Returns:
             Lista de registros de descarga
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         query = """
             SELECT id, date, platform, title, url, format, file_path,
                    duration, status, artist, quality, error_message
@@ -212,27 +211,27 @@ class Database:
             WHERE 1=1
         """
         params = []
-        
+
         if platform:
             query += " AND platform = ?"
             params.append(platform)
-        
+
         if date_from:
             query += " AND date >= ?"
             params.append(date_from)
-        
+
         if date_to:
             query += " AND date <= ?"
             params.append(date_to)
-        
+
         if title_contains:
             query += " AND title LIKE ?"
             params.append(f"%{title_contains}%")
-        
+
         query += " ORDER BY created_at DESC"
-        
+
         cursor.execute(query, params)
-        
+
         records = []
         for row in cursor.fetchall():
             records.append(DownloadRecord(
@@ -249,33 +248,33 @@ class Database:
                 quality=row[10],
                 error_message=row[11]
             ))
-        
+
         conn.close()
         return records
-    
+
     def get_download_by_id(self, download_id: int) -> Optional[DownloadRecord]:
         """
         Obtener una descarga por ID.
-        
+
         Args:
             download_id: ID de la descarga
-            
+
         Returns:
             Registro de descarga o None
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             SELECT id, date, platform, title, url, format, file_path,
                    duration, status, artist, quality, error_message
             FROM downloads
             WHERE id = ?
         """, (download_id,))
-        
+
         row = cursor.fetchone()
         conn.close()
-        
+
         if row:
             return DownloadRecord(
                 id=row[0],
@@ -291,69 +290,69 @@ class Database:
                 quality=row[10],
                 error_message=row[11]
             )
-        
+
         return None
-    
+
     def get_total_downloads(self) -> int:
         """Obtener el total de descargas."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         cursor.execute("SELECT COUNT(*) FROM downloads")
         count = cursor.fetchone()[0]
-        
+
         conn.close()
         return count
-    
+
     def get_downloads_by_platform(self) -> dict:
         """Obtener conteo de descargas por plataforma."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             SELECT platform, COUNT(*) as count
             FROM downloads
             GROUP BY platform
             ORDER BY count DESC
         """)
-        
+
         result = {row[0]: row[1] for row in cursor.fetchall()}
         conn.close()
-        
+
         return result
-    
+
     def delete_download(self, download_id: int) -> bool:
         """
         Eliminar un registro de descarga.
-        
+
         Args:
             download_id: ID de la descarga
-            
+
         Returns:
             True si se eliminó correctamente
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         cursor.execute("DELETE FROM downloads WHERE id = ?", (download_id,))
         deleted = cursor.rowcount > 0
-        
+
         conn.commit()
         conn.close()
-        
+
         return deleted
-    
+
     def get_failed_downloads(self) -> List[DownloadRecord]:
         """
         Obtener descargas fallidas (status=failed o sin archivo asignado).
         No se considera duration=0: los directos/lives descargados con éxito no son fallos.
-        
+
         Returns:
             Lista de registros de descarga fallidos
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             SELECT id, date, platform, title, url, format, file_path,
                    duration, status, artist, quality, error_message
@@ -362,7 +361,7 @@ class Database:
                OR file_path = 'N/A'
                OR file_path = ''
         """)
-        
+
         records = []
         for row in cursor.fetchall():
             record = DownloadRecord(
@@ -380,68 +379,68 @@ class Database:
                 error_message=row[11]
             )
             records.append(record)
-        
+
         conn.close()
         return records
-    
+
     def delete_failed_downloads(self) -> int:
         """
         Eliminar todas las descargas fallidas.
-        
+
         Returns:
             Número de registros eliminados
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             DELETE FROM downloads
             WHERE status = 'failed'
                OR file_path = 'N/A'
                OR file_path = ''
         """)
-        
+
         deleted = cursor.rowcount
         conn.commit()
         conn.close()
-        
+
         return deleted
-    
+
     def get_setting(self, key: str) -> Optional[str]:
         """
         Obtener un valor de configuración.
-        
+
         Args:
             key: Clave de configuración
-            
+
         Returns:
             Valor de la configuración o None
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
         row = cursor.fetchone()
-        
+
         conn.close()
-        
+
         return row[0] if row else None
-    
+
     def set_setting(self, key: str, value: str) -> bool:
         """
         Establecer un valor de configuración (inserta o actualiza).
-        
+
         Args:
             key: Clave de configuración
             value: Valor a almacenar
-            
+
         Returns:
             True si se guardó correctamente
         """
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            
+
             cursor.execute("""
                 INSERT INTO settings (key, value, updated_at)
                 VALUES (?, ?, CURRENT_TIMESTAMP)
@@ -449,60 +448,60 @@ class Database:
                     value = excluded.value,
                     updated_at = CURRENT_TIMESTAMP
             """, (key, value))
-            
+
             conn.commit()
             conn.close()
             return True
         except Exception:
             return False
-    
+
     def _migrate_database(self):
         """Aplicar migraciones a bases de datos existentes."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         cursor.execute("PRAGMA table_info(downloads)")
         columns = [row[1] for row in cursor.fetchall()]
-        
+
         if "error_message" not in columns:
             cursor.execute("ALTER TABLE downloads ADD COLUMN error_message TEXT")
             conn.commit()
-        
+
         conn.close()
-    
+
     def delete_setting(self, key: str) -> bool:
         """
         Eliminar un valor de configuración.
-        
+
         Args:
             key: Clave de configuración
-            
+
         Returns:
             True si se eliminó correctamente
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         cursor.execute("DELETE FROM settings WHERE key = ?", (key,))
         deleted = cursor.rowcount > 0
-        
+
         conn.commit()
         conn.close()
-        
+
         return deleted
-    
+
     def get_all_settings(self) -> dict:
         """
         Obtener toda la configuración.
-        
+
         Returns:
             Diccionario con clave-valor de todas las configuraciones
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
+
         cursor.execute("SELECT key, value FROM settings")
         settings = {row[0]: row[1] for row in cursor.fetchall()}
-        
+
         conn.close()
         return settings

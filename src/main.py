@@ -14,25 +14,25 @@ root_dir = Path(__file__).parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
-from typing import Optional
 from datetime import datetime
+from typing import Optional
 
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Prompt, IntPrompt, Confirm
+from rich.prompt import Confirm, IntPrompt, Prompt
 from rich.table import Table
-from rich import box
 
-from src.platforms.detector import PlatformDetector, Platform
-from src.core.downloader import MediaDownloader, Quality
-from src.core.dependencies import DependencyChecker
 from src.core.converter import AudioConverter, AudioFormat
-from src.core.metadata import MetadataHandler, AudioMetadata
-from src.core.exporter import HistoryExporter
+from src.core.cookies import Browser, CookieManager
+from src.core.dependencies import DependencyChecker
+from src.core.downloader import MediaDownloader, Quality
 from src.core.environment import EnvironmentDetector, EnvironmentInfo, EnvironmentType
-from src.core.file_organizer import FileOrganizer, DestinationFolder
-from src.core.cookies import CookieManager, Browser
-from src.storage.database import Database, DownloadRecord
+from src.core.exporter import HistoryExporter
+from src.core.file_organizer import DestinationFolder, FileOrganizer
+from src.core.metadata import AudioMetadata, MetadataHandler
+from src.platforms.detector import PlatformDetector
+from src.storage.database import Database
 from src.ui.validation import normalize_url, normalize_user_path, normalize_username
 
 # Forzar UTF-8 en stdout/stderr antes de crear Console()
@@ -51,7 +51,7 @@ VERSION = "0.5.0"
 
 class UniversalDownloader:
     """Clase principal del Universal Media Downloader."""
-    
+
     def __init__(self):
         self.console = Console()
         self.env_info: Optional[EnvironmentInfo] = None
@@ -65,12 +65,12 @@ class UniversalDownloader:
         self.cookie_manager: Optional[CookieManager] = None
         self.username = "Usuario"
         self.running = True
-    
+
     def show_banner(self):
         """Mostrar banner de la aplicación."""
         total_downloads = self.database.get_total_downloads()
         device_name = self.env_info.display_name if self.env_info else "No detectado"
-        
+
         banner = f"""
 [bold cyan]{APP_NAME}[/bold cyan]
 [green]Versión {VERSION}[/green]
@@ -78,16 +78,16 @@ class UniversalDownloader:
 [dim]Total de descargas: {total_downloads}[/dim]
         """
         self.console.print(Panel(banner, box=box.DOUBLE_EDGE, expand=False))
-    
+
     def detect_environment(self):
         """Detectar automáticamente el entorno de ejecución."""
         self.console.print("\n[cyan]Detectando entorno...[/cyan]")
-        
+
         self.env_info = EnvironmentDetector.detect()
-        
+
         # Mostrar información del entorno
         EnvironmentDetector.show_info(self.env_info, self.console)
-        
+
         # Si es Termux y no tiene permisos, advertir
         if self.env_info.env_type == EnvironmentType.TERMUX:
             if not self.env_info.has_storage_permission:
@@ -96,10 +96,10 @@ class UniversalDownloader:
                 self.console.print("[dim]1. Ejecuta: termux-setup-storage[/dim]")
                 self.console.print("[dim]2. Acepta los permisos cuando se soliciten[/dim]")
                 self.console.print("[dim]3. Reinicia la aplicación[/dim]")
-                
+
                 if not Confirm.ask("\n¿Deseas continuar sin permisos de almacenamiento?", default=True):
                     sys.exit(0)
-        
+
         # Configurar ruta base
         if self.env_info.is_mobile and self.env_info.has_storage_permission:
             # En móvil, usar carpeta Download como base
@@ -112,31 +112,31 @@ class UniversalDownloader:
         else:
             # En desktop, usar UniversalDownloader en home
             self.base_path = self.env_info.downloads_path
-        
+
         # Crear directorio base
         self.base_path.mkdir(parents=True, exist_ok=True)
-        
+
         # Inicializar componentes que dependen de base_path
         self.downloader = MediaDownloader(self.base_path, self.console, self.database)
         self.cookie_manager = CookieManager(self.base_path, self.console, self.database)
-        
+
         self.console.print(f"\n[green]✓[/green] Entorno configurado: [bold]{self.env_info.display_name}[/bold]")
         self.console.print(f"[dim]Ruta base: {self.base_path}[/dim]")
-    
+
     def show_main_menu(self):
         """Mostrar menú principal."""
         self.console.print("\n[bold]═══ MENÚ PRINCIPAL ═══[/bold]\n")
-        
+
         table = Table(box=box.ROUNDED, show_header=False)
         table.add_column("Opción", style="cyan", justify="center", width=8)
         table.add_column("Acción", style="white")
-        
+
         table.add_row("1", "📥 Descargar contenido")
         table.add_row("2", "📋 Consultar descargas")
         table.add_row("3", "📤 Exportar historial")
         table.add_row("4", "📊 Resumen reciente")
         table.add_row("5", "🗑️  Limpiar errores")
-        
+
         # Solo mostrar opción de organizar si es móvil
         if self.env_info and self.env_info.is_mobile:
             table.add_row("6", "📁 Organizar archivos")
@@ -147,69 +147,69 @@ class UniversalDownloader:
             table.add_row("6", "👤 Cambiar usuario")
             table.add_row("7", "⚙️  Configuración")
             table.add_row("0", "🚪 Salir")
-        
+
         self.console.print(table)
-    
+
     def download_menu(self):
         """Menú de descarga."""
         self.console.print("\n[bold cyan]═══ DESCARGAR CONTENIDO ═══[/bold cyan]\n")
-        
+
         raw_url = Prompt.ask("Ingrese la URL del contenido")
         url = normalize_url(raw_url)
 
         if not url:
             self.console.print("[yellow]⚠ URL no válida. Debe ser un enlace http(s), p. ej. https://youtu.be/...[/yellow]")
             return
-        
+
         # Detectar plataforma
         platform_info = PlatformDetector.detect(url)
-        
+
         if platform_info.valid:
             self.console.print(f"[green]✓[/green] {platform_info.message}")
-            
+
             # Seleccionar calidad
             self.console.print("\n[bold]Seleccione calidad:[/bold]")
             table = Table(box=box.SIMPLE)
             table.add_column("Opción", style="cyan", justify="center")
             table.add_column("Calidad", style="white")
-            
+
             table.add_row("1", "Máxima disponible (Video)")
             table.add_row("2", "Recomendada 720p (Video)")
             table.add_row("3", "Convertir a audio")
             table.add_row("4", "Regresar")
-            
+
             self.console.print(table)
-            
+
             choice = IntPrompt.ask(
                 "\nSeleccione una opción",
                 choices=["1", "2", "3", "4"],
                 default="2"
             )
-            
+
             if choice == 4:
                 return
-            
+
             # Mapear elección a calidad
             quality_map = {
                 1: Quality.MAXIMUM,
                 2: Quality.RECOMMENDED,
                 3: Quality.AUDIO
             }
-            
+
             quality = quality_map.get(choice, Quality.RECOMMENDED)
-            
+
             # Si es audio, preguntar formato
             audio_format = None
             if choice == 3:
                 audio_format = self._select_audio_format()
                 if audio_format is None:
                     return
-            
+
             # Realizar descarga
-            self.console.print(f"\n[cyan]Iniciando descarga...[/cyan]")
-            
+            self.console.print("\n[cyan]Iniciando descarga...[/cyan]")
+
             download_thumbnail = (choice == 3)
-            
+
             result = self.downloader.download(
                 url=url,
                 quality=quality,
@@ -217,9 +217,9 @@ class UniversalDownloader:
                 platform=platform_info.name,
                 download_thumbnail=download_thumbnail
             )
-            
+
             if result.success:
-                self.console.print(f"\n[green]✓ Descarga completada exitosamente[/green]")
+                self.console.print("\n[green]✓ Descarga completada exitosamente[/green]")
                 self.console.print(f"[dim]Título: {result.title}[/dim]")
                 self.console.print(f"[dim]Artista: {result.artist}[/dim]")
                 self.console.print(f"[dim]Ubicación: {result.file_path}[/dim]")
@@ -229,18 +229,18 @@ class UniversalDownloader:
                     self.console.print(f"[dim]Duración: {minutes}:{seconds:02d}[/dim]")
                 if result.record_id:
                     self.console.print(f"[dim]ID de registro: {result.record_id}[/dim]")
-                
+
                 # Si es audio, procesar metadatos
                 if choice == 3 and audio_format and result.file_path:
                     self._process_audio_with_metadata(result, audio_format)
-                
+
                 # Preguntar si desea organizar el archivo (solo en móvil con permisos)
                 if self.env_info and self.env_info.is_mobile and self.env_info.has_storage_permission:
                     self._ask_organize_file(result.file_path)
             else:
-                self.console.print(f"\n[red]✗ Error en la descarga[/red]")
+                self.console.print("\n[red]✗ Error en la descarga[/red]")
                 self.console.print(f"[red]{result.error_message}[/red]")
-        
+
         else:
             supported = ", ".join(PlatformDetector.get_supported_platforms())
             self.console.print(f"[red]✗[/red] {platform_info.message}")
@@ -250,24 +250,24 @@ class UniversalDownloader:
         """Preguntar si desea organizar el archivo descargado."""
         if not self.env_info or not self.env_info.is_mobile:
             return
-        
+
         if not self.env_info.has_storage_permission:
             self.console.print("[yellow]⚠ Organizar archivos requiere permisos de almacenamiento. Ejecuta: termux-setup-storage[/yellow]")
             return
-        
-        self.console.print(f"\n[cyan]¿Deseas mover el archivo a una carpeta específica?[/cyan]")
-        
+
+        self.console.print("\n[cyan]¿Deseas mover el archivo a una carpeta específica?[/cyan]")
+
         table = Table(box=box.SIMPLE)
         table.add_column("Opción", style="cyan", justify="center")
         table.add_column("Carpeta", style="white")
-        
+
         table.add_row("1", f"📁 Descargas ({self.env_info.downloads_path})")
         table.add_row("2", f"🎵 Música ({self.env_info.music_path})")
         table.add_row("3", f"🎬 Videos ({self.env_info.videos_path})")
         table.add_row("4", "❌ No mover")
-        
+
         self.console.print(table)
-        
+
         choice = IntPrompt.ask(
             "\nSeleccione una opción",
             choices=["1", "2", "3", "4"],
@@ -275,84 +275,84 @@ class UniversalDownloader:
         )
         # Convertir a string para usar como clave del diccionario
         choice_str = str(choice)
-        
+
         if choice_str == "4":
             return
-        
+
         dest_map = {
             "1": DestinationFolder.DOWNLOADS,
             "2": DestinationFolder.MUSIC,
             "3": DestinationFolder.VIDEOS
         }
-        
+
         destination = dest_map[choice_str]  # Usar choice_str en lugar de choice
-        
+
         # La ruta base para organizer es /storage/emulated/0
         storage_base = Path("/storage/emulated/0")
-        
+
         result = self.file_organizer.move_to_folder(file_path, destination, storage_base)
-        
+
         if result.success:
-            self.console.print(f"\n[green]✓ Archivo movido exitosamente[/green]")
+            self.console.print("\n[green]✓ Archivo movido exitosamente[/green]")
             self.console.print(f"[dim]Nueva ubicación: {result.destination}[/dim]")
         else:
             self.console.print(f"\n[red]✗ Error al mover archivo: {result.error_message}[/red]")
-    
+
     def _select_audio_format(self) -> Optional[AudioFormat]:
         """Seleccionar formato de audio."""
         self.console.print("\n[bold]Seleccione formato de audio:[/bold]")
-        
+
         table = Table(box=box.SIMPLE)
         table.add_column("Opción", style="cyan", justify="center")
         table.add_column("Formato", style="white")
-        
+
         formats = list(AudioFormat)
         for i, fmt in enumerate(formats, 1):
             table.add_row(str(i), fmt.description)
-        
+
         table.add_row(str(len(formats) + 1), "Regresar")
-        
+
         self.console.print(table)
-        
+
         choice = IntPrompt.ask(
             "\nSeleccione una opción",
             choices=[str(i) for i in range(1, len(formats) + 2)],
             default="1"
         )
-        
+
         if choice == len(formats) + 1:
             return None
-        
+
         return formats[choice - 1]
-    
+
     def _process_audio_with_metadata(self, result, target_format: AudioFormat):
         """Procesar audio: convertir formato e incrustar metadatos."""
-        self.console.print(f"\n[cyan]Procesando audio...[/cyan]")
-        
+        self.console.print("\n[cyan]Procesando audio...[/cyan]")
+
         current_path = result.file_path
         final_path = current_path
-        
+
         if current_path.suffix.lower() != f".{target_format.value}":
             self.console.print(f"[dim]Convirtiendo a {target_format.description}...[/dim]")
-            
+
             conversion_result = self.converter.convert(
                 input_path=current_path,
                 output_format=target_format
             )
-            
+
             if conversion_result.success:
                 final_path = conversion_result.output_path
-                self.console.print(f"[green]✓[/green] Conversión completada")
-                
+                self.console.print("[green]✓[/green] Conversión completada")
+
                 if current_path != final_path and current_path.exists():
                     current_path.unlink()
             else:
                 self.console.print(f"[red]✗ Error en conversión: {conversion_result.error_message}[/red]")
                 return
-        
+
         # Incrustar metadatos
-        self.console.print(f"[dim]Incrustando metadatos y carátula...[/dim]")
-        
+        self.console.print("[dim]Incrustando metadatos y carátula...[/dim]")
+
         metadata = AudioMetadata(
             title=result.title or "Sin título",
             artist=result.artist or "Desconocido",
@@ -360,45 +360,45 @@ class UniversalDownloader:
             date=result.upload_date,
             cover_path=result.thumbnail_path
         )
-        
+
         if self.metadata_handler.embed_metadata(final_path, metadata):
-            self.console.print(f"[green]✓[/green] Metadatos incrustados exitosamente")
+            self.console.print("[green]✓[/green] Metadatos incrustados exitosamente")
             self.console.print(f"[dim]Formato final: {final_path.name}[/dim]")
-            
+
             # Actualizar ruta en el resultado
             result.file_path = final_path
-            
+
             if result.thumbnail_path and result.thumbnail_path.exists():
                 try:
                     result.thumbnail_path.unlink()
-                    self.console.print(f"[dim]✓ Miniatura temporal eliminada[/dim]")
+                    self.console.print("[dim]✓ Miniatura temporal eliminada[/dim]")
                 except Exception as e:
                     self.console.print(f"[yellow]⚠ No se pudo eliminar miniatura: {e}[/yellow]")
         else:
-            self.console.print(f"[yellow]⚠ No se pudieron incrustar metadatos[/yellow]")
-    
+            self.console.print("[yellow]⚠ No se pudieron incrustar metadatos[/yellow]")
+
     def view_downloads(self):
         """Ver historial de descargas."""
         self.console.print("\n[bold cyan]═══ CONSULTAR DESCARGAS ═══[/bold cyan]\n")
-        
+
         table = Table(box=box.SIMPLE)
         table.add_column("Opción", style="cyan", justify="center")
         table.add_column("Acción", style="white")
-        
+
         table.add_row("1", "Ver últimas 20 descargas")
         table.add_row("2", "Buscar por plataforma")
         table.add_row("3", "Buscar por fecha")
         table.add_row("4", "Buscar por nombre")
         table.add_row("5", "Regresar")
-        
+
         self.console.print(table)
-        
+
         choice = IntPrompt.ask(
             "\nSeleccione una opción",
             choices=["1", "2", "3", "4", "5"],
             default="1"
         )
-        
+
         if choice == 1:
             self._show_recent_downloads()
         elif choice == 2:
@@ -407,55 +407,55 @@ class UniversalDownloader:
             self._search_by_date()
         elif choice == 4:
             self._search_by_name()
-    
+
     def _show_recent_downloads(self, limit: int = 20):
         """Mostrar descargas recientes."""
         records = self.database.get_recent_downloads(limit)
-        
+
         if not records:
             self.console.print("[yellow]No hay descargas registradas[/yellow]")
             return
-        
+
         self._display_downloads_table(records)
-    
+
     def _search_by_platform(self):
         """Buscar descargas por plataforma."""
         self.console.print("\n[bold]Plataformas disponibles:[/bold]")
         platforms = ["YouTube", "Facebook", "Instagram", "TikTok"]
-        
+
         for i, platform in enumerate(platforms, 1):
             self.console.print(f"  {i}. {platform}")
-        
+
         choice = IntPrompt.ask(
             "\nSeleccione una plataforma",
             choices=[str(i) for i in range(1, len(platforms) + 1)],
             default="1"
         )
-        
+
         platform = platforms[choice - 1]
         records = self.database.search_downloads(platform=platform)
-        
+
         if not records:
             self.console.print(f"[yellow]No hay descargas de {platform}[/yellow]")
             return
-        
+
         self._display_downloads_table(records)
-    
+
     def _search_by_date(self):
         """Buscar descargas por fecha."""
         self.console.print("\n[bold]Búsqueda por fecha:[/bold]")
         date_from = self._ask_valid_date("Desde (YYYY-MM-DD)")
         date_to = self._ask_valid_date("Hasta (YYYY-MM-DD)")
-        
+
         records = self.database.search_downloads(
             date_from=date_from,
             date_to=date_to
         )
-        
+
         if not records:
             self.console.print("[yellow]No se encontraron descargas en ese rango de fechas[/yellow]")
             return
-        
+
         self._display_downloads_table(records)
 
     def _ask_valid_date(self, prompt: str) -> Optional[str]:
@@ -469,22 +469,22 @@ class UniversalDownloader:
                 return value
             except ValueError:
                 self.console.print(f"[red]Formato inválido: '{value}'. Usa YYYY-MM-DD (ej. 2024-03-15).[/red]")
-    
+
     def _search_by_name(self):
         """Buscar descargas por nombre."""
         title = Prompt.ask("\nIngrese texto a buscar en el título")
-        
+
         if not title:
             return
-        
+
         records = self.database.search_downloads(title_contains=title)
-        
+
         if not records:
             self.console.print(f"[yellow]No se encontraron descargas con '{title}'[/yellow]")
             return
-        
+
         self._display_downloads_table(records)
-    
+
     def _display_downloads_table(self, records: list):
         """Mostrar tabla de descargas."""
         table = Table(box=box.ROUNDED)
@@ -494,11 +494,11 @@ class UniversalDownloader:
         table.add_column("Título", style="white", max_width=40)
         table.add_column("Formato", style="yellow")
         table.add_column("Duración", style="blue", justify="right")
-        
+
         for record in records:
             duration_str = self._format_duration(record.duration)
             title_short = record.title[:40] + "..." if len(record.title) > 40 else record.title
-            
+
             table.add_row(
                 str(record.id),
                 record.date,
@@ -507,10 +507,10 @@ class UniversalDownloader:
                 record.format,
                 duration_str
             )
-        
+
         self.console.print(f"\n[bold]Resultados ({len(records)} descargas):[/bold]\n")
         self.console.print(table)
-    
+
     def _format_duration(self, seconds: Optional[int]) -> str:
         """Formatear duración."""
         if seconds is None:
@@ -519,45 +519,45 @@ class UniversalDownloader:
         minutes = seconds // 60
         secs = seconds % 60
         return f"{minutes}:{secs:02d}"
-    
+
     def export_history(self):
         """Exportar historial de descargas."""
         self.console.print("\n[bold cyan]═══ EXPORTAR HISTORIAL ═══[/bold cyan]\n")
-        
+
         records = self.database.get_recent_downloads(1000)
-        
+
         if not records:
             self.console.print("[yellow]No hay descargas para exportar[/yellow]")
             return
-        
+
         self.console.print(f"[dim]Total de descargas: {len(records)}[/dim]\n")
-        
+
         table = Table(box=box.SIMPLE)
         table.add_column("Opción", style="cyan", justify="center")
         table.add_column("Formato", style="white")
-        
+
         table.add_row("1", "TXT (Texto plano)")
         table.add_row("2", "Markdown (MD)")
         table.add_row("3", "JSON (Datos estructurados)")
         table.add_row("4", "Regresar")
-        
+
         self.console.print(table)
-        
+
         choice = IntPrompt.ask(
             "\nSeleccione un formato",
             choices=["1", "2", "3", "4"],
             default="1"
         )
-        
+
         if choice == 4:
             return
-        
+
         # Crear directorio de exportación
         export_dir = self.base_path / "exports"
         export_dir.mkdir(parents=True, exist_ok=True)
-        
+
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        
+
         if choice == 1:
             output_path = export_dir / f"historial_{timestamp}.txt"
             success = self.exporter.export_to_txt(records, output_path)
@@ -567,145 +567,145 @@ class UniversalDownloader:
         elif choice == 3:
             output_path = export_dir / f"historial_{timestamp}.json"
             success = self.exporter.export_to_json(records, output_path)
-        
+
         if success:
-            self.console.print(f"\n[green]✓ Historial exportado exitosamente[/green]")
+            self.console.print("\n[green]✓ Historial exportado exitosamente[/green]")
             self.console.print(f"[dim]Ubicación: {output_path}[/dim]")
         else:
-            self.console.print(f"\n[red]✗ Error al exportar el historial[/red]")
-    
+            self.console.print("\n[red]✗ Error al exportar el historial[/red]")
+
     def organize_files_menu(self):
         """Menú de organización de archivos (solo móvil)."""
         if not self.env_info or not self.env_info.is_mobile:
             self.console.print("[yellow]Esta opción solo está disponible en dispositivos móviles[/yellow]")
             return
-        
+
         if not self.env_info.has_storage_permission:
             self.console.print("[yellow]⚠ Organizar archivos requiere permisos de almacenamiento. Ejecuta: termux-setup-storage[/yellow]")
             return
-        
+
         self.console.print("\n[bold cyan]═══ ORGANIZAR ARCHIVOS ═══[/bold cyan]\n")
-        
+
         table = Table(box=box.SIMPLE)
         table.add_column("Opción", style="cyan", justify="center")
         table.add_column("Acción", style="white")
-        
+
         table.add_row("1", "Listar archivos descargados")
         table.add_row("2", "Organizar automáticamente (por tipo)")
         table.add_row("3", "Mover archivo específico")
         table.add_row("4", "Regresar")
-        
+
         self.console.print(table)
-        
+
         choice = IntPrompt.ask(
             "\nSeleccione una opción",
             choices=["1", "2", "3", "4"],
             default="1"
         )
-        
+
         if choice == 1:
             self._list_downloaded_files()
         elif choice == 2:
             self._auto_organize_files()
         elif choice == 3:
             self._move_specific_file()
-    
+
     def _list_downloaded_files(self):
         """Listar archivos descargados."""
         files = self.file_organizer.list_downloaded_files(self.base_path)
-        
+
         if not files:
             self.console.print("[yellow]No hay archivos descargados[/yellow]")
             return
-        
+
         self.console.print(f"\n[bold]Archivos descargados ({len(files)}):[/bold]\n")
-        
+
         table = Table(box=box.ROUNDED)
         table.add_column("#", style="cyan", justify="center")
         table.add_column("Nombre", style="white", max_width=50)
         table.add_column("Tamaño", style="green", justify="right")
         table.add_column("Fecha", style="yellow")
-        
+
         for i, file_path in enumerate(files[:20], 1):
             size_mb = file_path.stat().st_size / (1024 * 1024)
             date = datetime.fromtimestamp(file_path.stat().st_mtime).strftime('%Y-%m-%d')
             name = file_path.name[:50] + "..." if len(file_path.name) > 50 else file_path.name
-            
+
             table.add_row(
                 str(i),
                 name,
                 f"{size_mb:.2f} MB",
                 date
             )
-        
+
         self.console.print(table)
-    
+
     def _auto_organize_files(self):
         """Organizar archivos automáticamente."""
         if not Confirm.ask("\n¿Organizar todos los archivos automáticamente?", default=False):
             return
-        
+
         self.console.print("\n[cyan]Organizando archivos...[/cyan]")
-        
+
         storage_base = Path("/storage/emulated/0")
         results = self.file_organizer.auto_organize(self.base_path, storage_base)
-        
+
         success_count = sum(1 for r in results if r.success)
         error_count = len(results) - success_count
-        
+
         self.console.print(f"\n[green]✓ {success_count} archivos organizados[/green]")
         if error_count > 0:
             self.console.print(f"[red]✗ {error_count} errores[/red]")
-    
+
     def _move_specific_file(self):
         """Mover archivo específico."""
         files = self.file_organizer.list_downloaded_files(self.base_path)
-        
+
         if not files:
             self.console.print("[yellow]No hay archivos para mover[/yellow]")
             return
-        
+
         self.console.print("\n[bold]Archivos disponibles:[/bold]\n")
-        
+
         for i, file_path in enumerate(files[:20], 1):
             self.console.print(f"  {i}. {file_path.name}")
-        
+
         choice = IntPrompt.ask(
             "\nSeleccione un archivo",
             choices=[str(i) for i in range(1, min(len(files), 20) + 1)]
         )
-        
+
         file_path = files[choice - 1]
         self._ask_organize_file(file_path)
-    
+
     def recent_summary(self):
         """Mostrar resumen reciente."""
         self.console.print("\n[bold cyan]═══ RESUMEN RECIENTE ═══[/bold cyan]\n")
-        
+
         total = self.database.get_total_downloads()
         by_platform = self.database.get_downloads_by_platform()
         recent = self.database.get_recent_downloads(5)
-        
+
         self.console.print(f"[bold]Total de descargas:[/bold] {total}\n")
-        
+
         if by_platform:
             self.console.print("[bold]Descargas por plataforma:[/bold]")
             table = Table(box=box.SIMPLE)
             table.add_column("Plataforma", style="cyan")
             table.add_column("Cantidad", style="green", justify="right")
-            
+
             for platform, count in by_platform.items():
                 table.add_row(platform, str(count))
-            
+
             self.console.print(table)
             self.console.print()
-        
+
         if recent:
             self.console.print("[bold]Últimas 5 descargas:[/bold]")
             self._display_downloads_table(recent)
         else:
             self.console.print("[yellow]No hay descargas recientes[/yellow]")
-    
+
     def change_user(self):
         """Cambiar usuario."""
         self.console.print("\n[bold cyan]═══ CAMBIAR USUARIO ═══[/bold cyan]\n")
@@ -715,105 +715,105 @@ class UniversalDownloader:
             self.console.print(f"[green]✓[/green] Usuario cambiado a: [bold]{self.username}[/bold]")
         else:
             self.console.print("[yellow]⚠ Nombre no válido (máx. 32 caracteres, sin / \\ ni saltos de línea)[/yellow]")
-    
+
     def settings(self):
         """Configuración."""
         while True:
             self.console.print("\n[bold cyan]═══ CONFIGURACIÓN ═══[/bold cyan]\n")
-            
+
             # Información del entorno
             self.console.print("[bold]Entorno:[/bold]")
             EnvironmentDetector.show_info(self.env_info, self.console)
             self.console.print()
-            
+
             # Dependencias
             self.console.print("[bold]Dependencias:[/bold]")
             DependencyChecker.show_status(self.console)
-            
+
             try:
                 import mutagen
-                self.console.print(f"[green]✓[/green] [bold]mutagen[/bold]")
+                self.console.print("[green]✓[/green] [bold]mutagen[/bold]")
                 self.console.print(f"  [dim]Versión: {mutagen.version_string}[/dim]")
             except ImportError:
-                self.console.print(f"[red]✗[/red] [bold]mutagen[/bold]")
-                self.console.print(f"  [red]No está instalado[/red]")
-            
+                self.console.print("[red]✗[/red] [bold]mutagen[/bold]")
+                self.console.print("  [red]No está instalado[/red]")
+
             # Cookies
             self.console.print()
             self.cookie_manager.show_status()
-            
+
             # Base de datos
-            self.console.print(f"\n[bold]Base de datos:[/bold]")
+            self.console.print("\n[bold]Base de datos:[/bold]")
             self.console.print(f"  [dim]Ubicación: {self.database.db_path}[/dim]")
             self.console.print(f"  [dim]Total de registros: {self.database.get_total_downloads()}[/dim]")
-            
+
             # Instrucciones específicas para Termux
             if self.env_info and self.env_info.env_type == EnvironmentType.TERMUX:
-                self.console.print(f"\n[bold cyan]Termux - Comandos útiles:[/bold cyan]")
-                self.console.print(f"  [dim]• Mantener despierto: termux-wake-lock[/dim]")
-                self.console.print(f"  [dim]• Configurar almacenamiento: termux-setup-storage[/dim]")
-                self.console.print(f"  [dim]• Instalar FFmpeg: pkg install ffmpeg[/dim]")
-                self.console.print(f"  [dim]• Instalar Python: pkg install python[/dim]")
-            
+                self.console.print("\n[bold cyan]Termux - Comandos útiles:[/bold cyan]")
+                self.console.print("  [dim]• Mantener despierto: termux-wake-lock[/dim]")
+                self.console.print("  [dim]• Configurar almacenamiento: termux-setup-storage[/dim]")
+                self.console.print("  [dim]• Instalar FFmpeg: pkg install ffmpeg[/dim]")
+                self.console.print("  [dim]• Instalar Python: pkg install python[/dim]")
+
             self.console.print("\n[bold]Opciones:[/bold]")
             table = Table(box=box.SIMPLE)
             table.add_column("Opción", style="cyan", justify="center")
             table.add_column("Acción", style="white")
-            
+
             table.add_row("1", "🍪 Gestionar cookies")
             table.add_row("2", "Regresar")
-            
+
             self.console.print(table)
-            
+
             choice = Prompt.ask(
                 "\nSeleccione una opción",
                 choices=["1", "2"],
                 default="2"
             )
-            
+
             if choice == "1":
                 self._cookies_menu()
             else:
                 break
-    
+
     def _cookies_menu(self):
         """Submenú de gestión de cookies para contenido privado."""
         self.console.print("\n[bold cyan]═══ GESTIONAR COOKIES ═══[/bold cyan]")
         self.console.print("[dim]Las cookies permiten descargar contenido privado/restringido[/dim]")
         self.console.print(f"[dim]Carpeta: {self.cookie_manager.cookies_dir}[/dim]\n")
-        
+
         self.cookie_manager.show_status()
-        
+
         self.console.print("\n[bold]Opciones:[/bold]")
         table = Table(box=box.SIMPLE)
         table.add_column("Opción", style="cyan", justify="center")
         table.add_column("Acción", style="white")
-        
+
         table.add_row("1", "📂 Cargar cookies para una plataforma")
-        
+
         has_browsers = self.env_info and not self.env_info.is_mobile and self.env_info.available_browsers
         next_option = 2
-        
+
         if has_browsers:
             table.add_row("2", "🌐 Extraer cookies del navegador")
             next_option = 3
-        
+
         table.add_row(str(next_option), "🧪 Probar cookies de una plataforma")
         table.add_row(str(next_option + 1), "🗑️  Eliminar cookies de una plataforma")
         table.add_row(str(next_option + 2), "🗑️  Eliminar todas las cookies")
         table.add_row(str(next_option + 3), "Regresar")
-        
+
         self.console.print(table)
-        
+
         max_option = next_option + 3
         choices = [str(i) for i in range(1, max_option + 1)]
-        
+
         choice = Prompt.ask(
             "\nSeleccione una opción",
             choices=choices,
             default=str(max_option)
         )
-        
+
         if choice == "1":
             self._configure_cookie_file()
         elif choice == "2" and has_browsers:
@@ -825,55 +825,55 @@ class UniversalDownloader:
         elif choice == str(next_option + 2):
             if Confirm.ask("\n¿Eliminar todas las cookies?", default=False):
                 self.cookie_manager.clear()
-    
+
     def _select_platform(self, prompt_text: str = "Selecciona la plataforma") -> Optional[str]:
         """Seleccionar plataforma de la lista."""
         self.console.print(f"\n[bold]{prompt_text}:[/bold]")
-        
+
         table = Table(box=box.SIMPLE)
         table.add_column("Opción", style="cyan", justify="center")
         table.add_column("Plataforma", style="white")
         table.add_column("Estado", style="dim")
-        
+
         platforms = CookieManager.PLATFORMS
         for i, platform in enumerate(platforms, 1):
             status = "[green]✓[/green]" if self.cookie_manager.has_cookies(platform) else "[dim]○[/dim]"
             table.add_row(str(i), platform.capitalize(), status)
-        
+
         table.add_row(str(len(platforms) + 1), "Regresar")
         self.console.print(table)
-        
+
         choices = [str(i) for i in range(1, len(platforms) + 2)]
         choice = Prompt.ask(
             "\nSeleccione",
             choices=choices,
             default=str(len(platforms) + 1)
         )
-        
+
         if choice == str(len(platforms) + 1):
             return None
-        
+
         return platforms[int(choice) - 1]
-    
+
     def _configure_cookie_file(self):
         """Configurar cookies desde archivo cookies.txt para una plataforma."""
         platform = self._select_platform("Cargar cookies para")
         if not platform:
             return
-        
+
         self.console.print(f"\n[bold]Cargar cookies para [cyan]{platform.capitalize()}[/cyan][/bold]")
         self.console.print("[dim]Exporta tus cookies con una extensión como 'Get cookies.txt LOCALLY'[/dim]")
         self.console.print("[dim]desde tu navegador (Chrome, Firefox, etc.)[/dim]\n")
-        
+
         dest_path = self.cookie_manager.get_cookie_path(platform)
         self.console.print(f"[dim]Se copiará a: {dest_path}[/dim]")
-        
+
         if self.env_info and self.env_info.is_mobile:
             default_path = str(self.env_info.home_path / f"{platform}_cookies.txt")
             self.console.print(f"[dim]En Termux, coloca tu archivo en: {default_path}[/dim]")
         else:
             default_path = ""
-        
+
         file_path = normalize_user_path(Prompt.ask("\nRuta al archivo cookies.txt", default=default_path))
 
         if not file_path:
@@ -881,77 +881,77 @@ class UniversalDownloader:
             return
 
         self.cookie_manager.configure_file(platform, file_path)
-    
+
     def _configure_browser_cookies(self):
         """Configurar cookies extrayéndolas del navegador para una plataforma."""
         platform = self._select_platform("Extraer cookies para")
         if not platform:
             return
-        
+
         if not self.env_info or not self.env_info.available_browsers:
             self.console.print("[yellow]No se detectaron navegadores instalados[/yellow]")
             return
-        
+
         self.console.print(f"\n[bold]Selecciona el navegador para extraer cookies de [cyan]{platform.capitalize()}[/cyan]:[/bold]")
-        
+
         browsers = self.env_info.available_browsers
         table = Table(box=box.SIMPLE)
         table.add_column("Opción", style="cyan", justify="center")
         table.add_column("Navegador", style="white")
-        
+
         browser_map = {}
         for i, browser_name in enumerate(browsers, 1):
             table.add_row(str(i), browser_name.capitalize())
             browser_map[str(i)] = browser_name
-        
+
         table.add_row(str(len(browsers) + 1), "Regresar")
-        
+
         self.console.print(table)
-        
+
         choices = [str(i) for i in range(1, len(browsers) + 2)]
         choice = Prompt.ask(
             "\nSeleccione un navegador",
             choices=choices,
             default="1"
         )
-        
+
         if choice == str(len(browsers) + 1):
             return
-        
+
         browser_name = browser_map[choice]
-        
+
         try:
             browser_enum = Browser(browser_name)
             self.console.print(f"\n[cyan]Extrayendo cookies de {browser_name} para {platform}...[/cyan]")
             self.cookie_manager.configure_from_browser(platform, browser_enum)
         except ValueError:
             self.console.print(f"[red]Navegador no soportado: {browser_name}[/red]")
-    
+
     def _test_cookies(self):
         """Probar si las cookies de una plataforma son válidas."""
         platform = self._select_platform("Probar cookies de")
         if not platform:
             return
-        
+
         if not self.cookie_manager.has_cookies(platform):
             self.console.print(f"\n[yellow]⚠ No hay cookies configuradas para {platform}[/yellow]")
             return
-        
+
         self.console.print(f"\n[cyan]Probando cookies de {platform}...[/cyan]")
-        
+
         result = self.cookie_manager.test_cookies(platform)
-        
+
         if result.valid:
             self.console.print(f"[green]✓ {result.message}[/green]")
         else:
             self.console.print(f"[red]✗ {result.message}[/red]")
-    
+
     def _clear_platform_cookies(self):
         """Eliminar cookies de una plataforma específica."""
         platform = self._select_platform("Eliminar cookies de")
         if not platform:
             return
-        
+
         if not self.cookie_manager.has_cookies(platform):
             self.console.print(f"\n[yellow]⚠ No hay cookies configuradas para {platform}[/yellow]")
             return
@@ -961,19 +961,19 @@ class UniversalDownloader:
             return
 
         self.cookie_manager.clear(platform)
-    
+
     def cleanup_failed_downloads(self):
         """Limpiar descargas fallidas del historial."""
         self.console.print("\n[bold cyan]═══ LIMPIAR ERRORES ═══[/bold cyan]\n")
-        
+
         failed = self.database.get_failed_downloads()
-        
+
         if not failed:
             self.console.print("[green]✓[/green] No hay descargas con errores")
             return
-        
+
         self.console.print(f"[yellow]Se encontraron [bold]{len(failed)}[/bold] descargas con errores:[/yellow]\n")
-        
+
         table = Table(box=box.ROUNDED)
         table.add_column("ID", style="cyan", justify="center")
         table.add_column("Fecha", style="green")
@@ -981,12 +981,12 @@ class UniversalDownloader:
         table.add_column("Título", style="white", max_width=40)
         table.add_column("Duración", style="yellow", justify="right")
         table.add_column("Estado", style="red")
-        
+
         for record in failed:
             duration_str = self._format_duration(record.duration)
             title_short = record.title[:40] + "..." if len(record.title) > 40 else record.title
             status = "Error" if record.status == "failed" else "0:00"
-            
+
             table.add_row(
                 str(record.id),
                 record.date,
@@ -995,37 +995,37 @@ class UniversalDownloader:
                 duration_str,
                 status
             )
-        
+
         self.console.print(table)
-        
+
         if Confirm.ask(f"\n¿Eliminar [bold]{len(failed)}[/bold] registros con errores?", default=True):
             deleted = self.database.delete_failed_downloads()
             self.console.print(f"\n[green]✓[/green] {deleted} registros eliminados del historial")
         else:
             self.console.print("[yellow]Operación cancelada[/yellow]")
-    
+
     def run(self):
         """Ejecutar aplicación principal."""
         # Detectar entorno automáticamente
         self.detect_environment()
-        
+
         # Bucle principal
         while self.running:
             self.show_banner()
             self.show_main_menu()
-            
+
             # Determinar opciones válidas según el entorno
             if self.env_info and self.env_info.is_mobile:
                 valid_choices = ["0", "1", "2", "3", "4", "5", "6", "7", "8"]
             else:
                 valid_choices = ["0", "1", "2", "3", "4", "5", "6", "7"]
-            
+
             choice = Prompt.ask(
                 "\nSeleccione una opción",
                 choices=valid_choices,
                 default="0"
             )
-            
+
             if choice == "1":
                 self.download_menu()
             elif choice == "2":
@@ -1052,7 +1052,7 @@ class UniversalDownloader:
             elif choice == "0":
                 self.console.print("\n[green]¡Hasta luego![/green]\n")
                 self.running = False
-            
+
             if self.running:
                 Prompt.ask("\nPresione [bold]Enter[/bold] para continuar")
 

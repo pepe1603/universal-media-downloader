@@ -1,13 +1,10 @@
-from contextlib import contextmanager
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 import yt_dlp
-
 from src.core import downloader as dl
-from src.core.downloader import MediaDownloader, Quality
 from src.core.dependencies import DependencyStatus
+from src.core.downloader import MediaDownloader, Quality
 
 
 class FakeYDL:

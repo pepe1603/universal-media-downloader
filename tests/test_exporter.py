@@ -1,7 +1,6 @@
 import json
 
 import pytest
-
 from src.core.exporter import HistoryExporter
 from src.storage.database import DownloadRecord
 

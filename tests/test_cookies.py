@@ -2,7 +2,6 @@ import os
 import stat
 
 import pytest
-
 from src.core.cookies import CookieManager
 
 

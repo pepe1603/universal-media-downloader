@@ -1,7 +1,9 @@
+import shutil
+import subprocess
 from pathlib import Path
 
+import pytest
 from mutagen.wave import WAVE
-
 from src.core.metadata import AudioMetadata, MetadataHandler
 
 
@@ -28,11 +30,6 @@ def test_embed_wav(console, wav_file):
     assert str(tags["TIT2"]) == "Título ñ"
     assert str(tags["TPE1"]) == "Artista"
 
-
-import shutil
-import subprocess
-
-import pytest
 
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="requiere ffmpeg")
 

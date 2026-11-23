@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 from rich.console import Console
-
 from src.storage.database import Database
 
 

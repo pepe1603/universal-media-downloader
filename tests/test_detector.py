@@ -1,5 +1,4 @@
 import pytest
-
 from src.platforms.detector import Platform, PlatformDetector
 
 

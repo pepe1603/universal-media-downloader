@@ -20,10 +20,10 @@ EXPORT_ERRORS = (OSError, TypeError, ValueError)
 
 class HistoryExporter:
     """Exportador de historial de descargas."""
-    
+
     def __init__(self, console: Optional[Console] = None) -> None:
         self.console = console or Console()
-    
+
     def export_to_txt(
         self,
         records: List[DownloadRecord],
@@ -31,11 +31,11 @@ class HistoryExporter:
     ) -> bool:
         """
         Exportar historial a archivo TXT.
-        
+
         Args:
             records: Lista de registros
             output_path: Ruta del archivo de salida
-            
+
         Returns:
             True si fue exitoso
         """
@@ -47,7 +47,7 @@ class HistoryExporter:
                 f.write(f"Fecha de exportación: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                 f.write(f"Total de descargas: {len(records)}\n")
                 f.write("=" * 60 + "\n\n")
-                
+
                 for i, record in enumerate(records, 1):
                     f.write(f"[{i}] {record.title}\n")
                     f.write(f"    Plataforma: {record.platform}\n")
@@ -58,17 +58,17 @@ class HistoryExporter:
                     f.write(f"    URL: {record.url}\n")
                     f.write(f"    Archivo: {record.file_path}\n")
                     f.write("\n")
-                
+
                 f.write("=" * 60 + "\n")
                 f.write("Fin del reporte\n")
-            
+
             return True
-        
+
         except EXPORT_ERRORS as e:
             logger.exception("Fallo al exportar a TXT: %s", output_path)
             self.console.print(f"[red]Error al exportar a TXT: {e}[/red]")
             return False
-    
+
     def export_to_markdown(
         self,
         records: List[DownloadRecord],
@@ -76,11 +76,11 @@ class HistoryExporter:
     ) -> bool:
         """
         Exportar historial a archivo Markdown.
-        
+
         Args:
             records: Lista de registros
             output_path: Ruta del archivo de salida
-            
+
         Returns:
             True si fue exitoso
         """
@@ -90,7 +90,7 @@ class HistoryExporter:
                 f.write(f"**Fecha de exportación:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  \n")
                 f.write(f"**Total de descargas:** {len(records)}\n\n")
                 f.write("---\n\n")
-                
+
                 for i, record in enumerate(records, 1):
                     f.write(f"## {i}. {record.title}\n\n")
                     f.write(f"- **Plataforma:** {record.platform}\n")
@@ -100,17 +100,17 @@ class HistoryExporter:
                     f.write(f"- **Duración:** {self._format_duration(record.duration)}\n")
                     f.write(f"- **URL:** [{record.url}]({record.url})\n")
                     f.write(f"- **Archivo:** `{record.file_path}`\n\n")
-                
+
                 f.write("---\n\n")
                 f.write("*Generado por Universal Media Downloader*\n")
-            
+
             return True
-        
+
         except EXPORT_ERRORS as e:
             logger.exception("Fallo al exportar a Markdown: %s", output_path)
             self.console.print(f"[red]Error al exportar a Markdown: {e}[/red]")
             return False
-    
+
     def export_to_json(
         self,
         records: List[DownloadRecord],
@@ -118,11 +118,11 @@ class HistoryExporter:
     ) -> bool:
         """
         Exportar historial a archivo JSON.
-        
+
         Args:
             records: Lista de registros
             output_path: Ruta del archivo de salida
-            
+
         Returns:
             True si fue exitoso
         """
@@ -132,7 +132,7 @@ class HistoryExporter:
                 "total_downloads": len(records),
                 "downloads": []
             }
-            
+
             for record in records:
                 data["downloads"].append({
                     "id": record.id,
@@ -147,22 +147,22 @@ class HistoryExporter:
                     "artist": record.artist,
                     "quality": record.quality
                 })
-            
+
             with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            
+
             return True
-        
+
         except EXPORT_ERRORS as e:
             logger.exception("Fallo al exportar a JSON: %s", output_path)
             self.console.print(f"[red]Error al exportar a JSON: {e}[/red]")
             return False
-    
+
     def _format_duration(self, seconds: Optional[int]) -> str:
         """Formatear duración en segundos a formato MM:SS."""
         if seconds is None:
             return "Desconocido"
-        
+
         seconds = int(seconds)
         minutes = seconds // 60
         secs = seconds % 60

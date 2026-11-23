@@ -2,7 +2,6 @@ import shutil
 from pathlib import Path
 
 import pytest
-
 from src.core.converter import AudioConverter, AudioFormat
 
 

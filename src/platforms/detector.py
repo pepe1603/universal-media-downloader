@@ -3,10 +3,9 @@ Detector de plataformas multimedia.
 Analiza URLs para identificar la plataforma de origen.
 """
 
-from typing import Optional
-from urllib.parse import urlparse
 from dataclasses import dataclass
 from enum import Enum
+from urllib.parse import urlparse
 
 
 class Platform(Enum):
@@ -30,7 +29,7 @@ class PlatformInfo:
 
 class PlatformDetector:
     """Detector de plataformas multimedia."""
-    
+
     # Patrones de URLs soportadas
     PATTERNS = {
         Platform.YOUTUBE: {
@@ -50,15 +49,15 @@ class PlatformDetector:
             "name": "TikTok"
         }
     }
-    
+
     @classmethod
     def detect(cls, url: str) -> PlatformInfo:
         """
         Detectar plataforma desde una URL.
-        
+
         Args:
             url: URL a analizar
-            
+
         Returns:
             PlatformInfo con información de la plataforma detectada
         """
@@ -70,7 +69,7 @@ class PlatformDetector:
                 valid=False,
                 message="URL vacía"
             )
-        
+
         hostname = cls._extract_hostname(url)
 
         # Buscar coincidencias exactas de dominio o subdominio
@@ -84,7 +83,7 @@ class PlatformDetector:
                         valid=True,
                         message=f"Plataforma detectada: {config['name']}"
                     )
-        
+
         return PlatformInfo(
             platform=Platform.UNKNOWN,
             name="Desconocido",
@@ -92,7 +91,7 @@ class PlatformDetector:
             valid=False,
             message="Plataforma no soportada"
         )
-    
+
     @staticmethod
     def _extract_hostname(url: str) -> str:
         """Extraer el hostname en minúsculas de una URL (con o sin esquema)."""
