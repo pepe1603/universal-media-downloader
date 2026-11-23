@@ -153,9 +153,10 @@ class AudioConverter:
                 output_dir = input_path.parent
             
             output_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Construir ruta de salida
-            output_path = output_dir / f"{input_path.stem}.{output_format.value}"
+
+            # Rutas absolutas: evita que un nombre iniciando en "-" se lea como opción
+            input_path = input_path.resolve()
+            output_path = output_dir.resolve() / f"{input_path.stem}.{output_format.value}"
             
             # Construir comando
             cmd = self._build_ffmpeg_command(input_path, output_path, output_format)

@@ -227,9 +227,11 @@ class MetadataHandler:
             temp_jpeg = cover_path.with_name(f"{cover_path.stem}_umd_cover.jpg")
             try:
                 result = subprocess.run(
-                    ["ffmpeg", "-y", "-i", str(cover_path), "-q:v", "2", str(temp_jpeg)],
+                    ["ffmpeg", "-y", "-i", str(cover_path.resolve()), "-q:v", "2", str(temp_jpeg.resolve())],
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     timeout=60
                 )
                 if result.returncode == 0 and temp_jpeg.exists():
