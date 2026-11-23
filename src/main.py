@@ -53,7 +53,7 @@ console = Console()
 
 # Constantes
 APP_NAME = "Universal Media Downloader"
-VERSION = "0.5.0"
+VERSION = "0.2.0"
 
 
 class UniversalDownloader:

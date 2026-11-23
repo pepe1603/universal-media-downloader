@@ -2,7 +2,7 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
-## [Unreleased]
+## [0.2.0] - 2026-11-22
 
 ### Added
 - Descarga de playlists de YouTube (`src/core/playlist.py`): fallos aislados por video, omisión de privados/eliminados/ya descargados, reintento de fallidos, corte tras 5 fallos seguidos e interrupción con Ctrl+C.
