@@ -127,8 +127,12 @@ pip install -r requirements.txt
 ## Uso
 
 ```bash
-python src/main.py 
+umd                  # tras `pip install -e .`
+# o, sin instalar el paquete:
+python src/main.py
 ```
+
+Para diagnosticar errores: `UMD_DEBUG=1 umd` (activa logging detallado y muestra el traceback).
 
 La aplicación detecta automáticamente si estás en Termux o computadora y ajusta las rutas y opciones disponibles.
 
@@ -342,13 +346,27 @@ universal-media-downloader/
 │   │   └── detector.py      # Detección de plataformas
 │   ├── storage/
 │   │   └── database.py      # Base de datos SQLite
-│   ├── ui/                  # Componentes de UI (próximamente)
-├── tests/
+│   └── ui/
+│       └── validation.py    # Validación de URL, usuario y rutas
+├── tests/                   # Suite pytest (cobertura core ≥ 60%)
 ├── docs/
+├── .github/workflows/ci.yml # CI multi-OS (ruff + py_compile + pytest)
+├── pyproject.toml           # Empaquetado, ruff, pytest, cobertura
+├── CHANGELOG.md
 ├── requirements.txt
 ├── requirements.lock
 └── README.md
 ```
+
+## Desarrollo
+
+```bash
+pip install -e ".[dev]"
+ruff check src tests
+python -m pytest tests -q --cov
+```
+
+Flujo de ramas y convención de commits: ver [`docs/WORKFLOW.md`](docs/WORKFLOW.md).
 
 ## Licencia
 MIT
