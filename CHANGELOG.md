@@ -2,6 +2,14 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- Descarga de playlists de YouTube (`src/core/playlist.py`): fallos aislados por video, omisión de privados/eliminados/ya descargados, reintento de fallidos, corte tras 5 fallos seguidos e interrupción con Ctrl+C.
+
+### Fixed
+- Un enlace `watch?v=...&list=...` ya no expande toda la lista en una descarga individual (`noplaylist`) (BUG-20).
+
 ## [0.1.0] - 2026-11-22
 
 ### Added

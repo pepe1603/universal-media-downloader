@@ -111,6 +111,11 @@ Lista de problemas detectados en la CLI, separados por entorno (Termux / Termina
 - **Descripción:** URL, nombre de usuario y ruta de cookies sin normalizar; `Eliminar cookies de una plataforma` no pedía confirmación; errores fatales imprimían traceback siempre.
 - **Solución aplicada:** `src/ui/validation.py`, confirmación previa, traceback solo con `UMD_DEBUG=1`.
 
+### BUG-20 🟡 Una URL con `list=` descargaba toda la playlist en una descarga individual
+- **Archivo:** `src/core/downloader.py` (`_get_ydl_opts`)
+- **Descripción:** Sin `noplaylist`, yt-dlp expandía la lista y `extract_info` devolvía un diccionario de playlist, rompiendo el manejo del resultado.
+- **Solución aplicada:** `noplaylist: True` en las opciones; las playlists se procesan con el nuevo `PlaylistDownloader`.
+
 ---
 
 ## Estado de resolución
@@ -136,3 +141,4 @@ Lista de problemas detectados en la CLI, separados por entorno (Termux / Termina
 | BUG-17 | Terminal | `develop` | Resuelto |
 | BUG-18 | Terminal | `develop` | Resuelto |
 | BUG-19 | Terminal | `develop` | Resuelto |
+| BUG-20 | Terminal | `develop` | Resuelto |

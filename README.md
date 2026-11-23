@@ -204,6 +204,21 @@ El sistema automáticamente:
     - JSON: Datos estructurados para procesamiento
 
 
+## Playlists de YouTube
+
+Pega una URL de lista (`youtube.com/playlist?list=...` o un `watch?v=...&list=...`) en **Descargar contenido**.
+
+- **Solo YouTube.** En Instagram, Facebook y TikTok no hay descarga de listas: cualquier URL se trata como un único video.
+- **Mixes automáticos** (`list=RD...`) no se soportan (son personalizados e infinitos).
+- Si el enlace trae video y lista, se pregunta si quieres la lista completa o solo ese video.
+- Muestra título, total y cuántos videos no están disponibles, y pide confirmación. Máximo 200 videos por lista.
+- Cada video se descarga por separado en `<carpeta base>/playlists/<nombre de la lista>/youtube/`.
+- **Omitidos:** videos privados o eliminados y los ya descargados antes (según el historial, si el archivo sigue existiendo), así que volver a lanzar una lista la *reanuda*.
+- **Si un video falla**, se registra en el historial, se continúa con el siguiente y al final se muestra una tabla con el motivo; puedes reintentar solo los fallidos.
+- **5 fallos seguidos** detienen la lista (posible bloqueo/límite de peticiones o falta de cookies).
+- **Ctrl+C** detiene la lista de forma ordenada y muestra el resumen parcial.
+- Listas privadas o con restricción de edad: configura antes las cookies de YouTube.
+
 ## Cookies para contenido privado
 
 Para descargar videos privados, restringidos por edad o que requieren inicio de sesión, necesitas configurar cookies de tu navegador.
