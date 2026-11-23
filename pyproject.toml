@@ -46,6 +46,12 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B"]
+# E501: las líneas largas son mayormente markup de Rich en mensajes de usuario
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# main.py modifica sys.path antes de importar (ejecución directa con python src/main.py)
+"src/main.py" = ["E402"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
