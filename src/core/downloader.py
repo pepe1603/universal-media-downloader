@@ -151,6 +151,7 @@ class MediaDownloader:
 
         opts = {
             'outtmpl': output_template,
+            'noplaylist': True,  # una URL con list= descarga solo el video indicado
             'quiet': True,
             'no_warnings': True,
             'socket_timeout': 30,

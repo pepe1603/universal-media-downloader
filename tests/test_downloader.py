@@ -100,6 +100,11 @@ def test_progress_hook_updates():
     assert any(c.get("total") == 10 for c in calls)
 
 
+def test_ydl_opts_disable_playlist_expansion(mdl, tmp_path):
+    opts = mdl._get_ydl_opts(Quality.AUDIO, tmp_path, "YouTube")
+    assert opts["noplaylist"] is True
+
+
 def test_ydl_opts_per_quality(mdl, tmp_path):
     for q in Quality:
         opts = mdl._get_ydl_opts(q, tmp_path, "YouTube", download_thumbnail=True)
