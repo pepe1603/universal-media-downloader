@@ -3,23 +3,28 @@ Módulo de organización de archivos.
 Gestiona el movimiento de archivos a carpetas específicas en Android.
 """
 
+import logging
 import shutil
-from pathlib import Path
-from typing import Optional, List
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+from typing import List, Optional
 
 from rich.console import Console
+
+logger = logging.getLogger(__name__)
 
 
 class DestinationFolder(Enum):
     """Carpetas de destino para organización."""
+
     DOWNLOADS = "downloads"
     MUSIC = "music"
     VIDEOS = "videos"
     
     @property
     def description(self) -> str:
+        """Descripción legible de la carpeta de destino."""
         descriptions = {
             DestinationFolder.DOWNLOADS: "Descargas (Archivos generales)",
             DestinationFolder.MUSIC: "Música (Reproductores de música)",
@@ -41,6 +46,7 @@ class DestinationFolder(Enum):
 @dataclass
 class MoveResult:
     """Resultado de mover un archivo."""
+
     success: bool
     source: Path
     destination: Optional[Path] = None
@@ -50,7 +56,7 @@ class MoveResult:
 class FileOrganizer:
     """Organizador de archivos para dispositivos móviles."""
     
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(self, console: Optional[Console] = None) -> None:
         self.console = console or Console()
     
     def move_to_folder(
@@ -111,7 +117,8 @@ class FileOrganizer:
                 destination=dest_path
             )
         
-        except Exception as e:
+        except (OSError, shutil.Error) as e:
+            logger.exception("Fallo al mover %s", file_path)
             return MoveResult(
                 success=False,
                 source=file_path,
