@@ -31,7 +31,14 @@ from src.core.environment import EnvironmentDetector, EnvironmentInfo, Environme
 from src.core.exporter import HistoryExporter
 from src.core.file_organizer import DestinationFolder, FileOrganizer
 from src.core.metadata import AudioMetadata, MetadataHandler
-from src.platforms.detector import PlatformDetector
+from src.core.playlist import (
+    MAX_PLAYLIST_ITEMS,
+    PlaylistDownloader,
+    PlaylistSummary,
+    extract_playlist_id,
+    has_video_reference,
+)
+from src.platforms.detector import Platform, PlatformDetector
 from src.storage.database import Database
 from src.ui.validation import normalize_url, normalize_user_path, normalize_username
 
@@ -58,6 +65,7 @@ class UniversalDownloader:
         self.base_path: Optional[Path] = None
         self.database = Database()
         self.downloader: Optional[MediaDownloader] = None
+        self.playlist_downloader: Optional[PlaylistDownloader] = None
         self.converter = AudioConverter(self.console)
         self.metadata_handler = MetadataHandler(self.console)
         self.exporter = HistoryExporter(self.console)
@@ -118,6 +126,7 @@ class UniversalDownloader:
 
         # Inicializar componentes que dependen de base_path
         self.downloader = MediaDownloader(self.base_path, self.console, self.database)
+        self.playlist_downloader = PlaylistDownloader(self.downloader, self.console)
         self.cookie_manager = CookieManager(self.base_path, self.console, self.database)
 
         self.console.print(f"\n[green]✓[/green] Entorno configurado: [bold]{self.env_info.display_name}[/bold]")
@@ -167,43 +176,19 @@ class UniversalDownloader:
         if platform_info.valid:
             self.console.print(f"[green]✓[/green] {platform_info.message}")
 
-            # Seleccionar calidad
-            self.console.print("\n[bold]Seleccione calidad:[/bold]")
-            table = Table(box=box.SIMPLE)
-            table.add_column("Opción", style="cyan", justify="center")
-            table.add_column("Calidad", style="white")
-
-            table.add_row("1", "Máxima disponible (Video)")
-            table.add_row("2", "Recomendada 720p (Video)")
-            table.add_row("3", "Convertir a audio")
-            table.add_row("4", "Regresar")
-
-            self.console.print(table)
-
-            choice = IntPrompt.ask(
-                "\nSeleccione una opción",
-                choices=["1", "2", "3", "4"],
-                default="2"
-            )
-
-            if choice == 4:
-                return
-
-            # Mapear elección a calidad
-            quality_map = {
-                1: Quality.MAXIMUM,
-                2: Quality.RECOMMENDED,
-                3: Quality.AUDIO
-            }
-
-            quality = quality_map.get(choice, Quality.RECOMMENDED)
-
-            # Si es audio, preguntar formato
-            audio_format = None
-            if choice == 3:
-                audio_format = self._select_audio_format()
-                if audio_format is None:
+            if platform_info.platform == Platform.YOUTUBE and extract_playlist_id(url):
+                if not has_video_reference(url) or Confirm.ask(
+                    "\nEste enlace pertenece a una lista de reproducción. "
+                    "¿Descargar la lista completa? (No = solo este video)",
+                    default=False,
+                ):
+                    self._download_playlist(url)
                     return
+
+            selection = self._ask_quality()
+            if selection is None:
+                return
+            quality, choice, audio_format = selection
 
             # Realizar descarga
             self.console.print("\n[cyan]Iniciando descarga...[/cyan]")
@@ -245,6 +230,124 @@ class UniversalDownloader:
             supported = ", ".join(PlatformDetector.get_supported_platforms())
             self.console.print(f"[red]✗[/red] {platform_info.message}")
             self.console.print(f"[dim]Plataformas soportadas: {supported}[/dim]")
+
+    def _ask_quality(self) -> Optional[tuple[Quality, int, Optional[AudioFormat]]]:
+        """Pregunta calidad (y formato si es audio).
+
+        Returns:
+            (calidad, opción elegida, formato de audio) o None si se cancela.
+        """
+        # Seleccionar calidad
+        self.console.print("\n[bold]Seleccione calidad:[/bold]")
+        table = Table(box=box.SIMPLE)
+        table.add_column("Opción", style="cyan", justify="center")
+        table.add_column("Calidad", style="white")
+
+        table.add_row("1", "Máxima disponible (Video)")
+        table.add_row("2", "Recomendada 720p (Video)")
+        table.add_row("3", "Convertir a audio")
+        table.add_row("4", "Regresar")
+
+        self.console.print(table)
+
+        choice = IntPrompt.ask(
+            "\nSeleccione una opción",
+            choices=["1", "2", "3", "4"],
+            default="2"
+        )
+
+        if choice == 4:
+            return
+
+        # Mapear elección a calidad
+        quality_map = {
+            1: Quality.MAXIMUM,
+            2: Quality.RECOMMENDED,
+            3: Quality.AUDIO
+        }
+
+        quality = quality_map.get(choice, Quality.RECOMMENDED)
+
+        # Si es audio, preguntar formato
+        audio_format = None
+        if choice == 3:
+            audio_format = self._select_audio_format()
+            if audio_format is None:
+                return
+
+        return quality, choice, audio_format
+
+    def _download_playlist(self, url: str) -> None:
+        """Flujo de descarga de una playlist de YouTube (video por video)."""
+        self.console.print("\n[bold cyan]═══ DESCARGAR PLAYLIST ═══[/bold cyan]\n")
+        self.console.print("[dim]Leyendo la lista...[/dim]")
+
+        info = self.playlist_downloader.fetch_info(url)
+        if info is None:
+            self.console.print("[red]✗ No se pudo obtener la playlist (¿es privada o no existe?)[/red]")
+            self.console.print("[dim]Si es privada, configura cookies en: Configuración > Gestionar cookies[/dim]")
+            return
+
+        available = len(info.downloadable)
+        unavailable = len(info.entries) - available
+        self.console.print(f"[bold]{info.title}[/bold]")
+        self.console.print(f"[dim]{len(info.entries)} videos: {available} disponibles, {unavailable} no disponibles[/dim]")
+        if info.truncated:
+            self.console.print(f"[yellow]⚠ La lista es muy grande: solo se procesarán los primeros {MAX_PLAYLIST_ITEMS}[/yellow]")
+        if available == 0:
+            self.console.print("[yellow]⚠ No hay videos disponibles para descargar[/yellow]")
+            return
+
+        selection = self._ask_quality()
+        if selection is None:
+            return
+        quality, choice, audio_format = selection
+
+        output_dir = self.playlist_downloader.output_dir_for(info, self.base_path)
+        self.console.print(f"\n[dim]Destino: {output_dir}[/dim]")
+        if not Confirm.ask(f"¿Descargar {available} videos?", default=True):
+            self.console.print("[dim]Operación cancelada[/dim]")
+            return
+
+        on_success = None
+        if choice == 3 and audio_format:
+            def on_success(result) -> None:
+                self._process_audio_with_metadata(result, audio_format)
+
+        self.console.print("\n[cyan]Iniciando descarga de la lista (Ctrl+C para detener)...[/cyan]")
+        summary = self.playlist_downloader.download_entries(
+            info.entries, quality, output_dir,
+            download_thumbnail=(choice == 3), on_success=on_success, total=len(info.entries),
+        )
+        self._show_playlist_summary(summary)
+
+        if summary.failed and not summary.interrupted:
+            if Confirm.ask(f"\n¿Reintentar los {len(summary.failed)} videos fallidos?", default=False):
+                retry = self.playlist_downloader.download_entries(
+                    [o.entry for o in summary.failed], quality, output_dir,
+                    download_thumbnail=(choice == 3), on_success=on_success, total=len(info.entries),
+                )
+                self._show_playlist_summary(retry)
+
+    def _show_playlist_summary(self, summary: PlaylistSummary) -> None:
+        """Muestra el resumen final de una descarga de playlist."""
+        self.console.print("\n[bold cyan]═══ RESUMEN DE LA PLAYLIST ═══[/bold cyan]")
+        self.console.print(
+            f"[green]✓ Descargados: {len(summary.succeeded)}[/green]  "
+            f"[red]✗ Fallidos: {len(summary.failed)}[/red]  "
+            f"[yellow]⏭ Omitidos: {len(summary.skipped)}[/yellow]  "
+            f"[dim]Sin procesar: {len(summary.aborted)}[/dim]"
+        )
+        problems = summary.failed + summary.skipped + summary.aborted
+        if problems:
+            table = Table(box=box.SIMPLE)
+            table.add_column("#", justify="right")
+            table.add_column("Título")
+            table.add_column("Estado")
+            table.add_column("Motivo")
+            for outcome in sorted(problems, key=lambda o: o.entry.index):
+                table.add_row(str(outcome.entry.index), outcome.entry.title[:50], outcome.status, outcome.message[:70])
+            self.console.print(table)
 
     def _ask_organize_file(self, file_path: Path):
         """Preguntar si desea organizar el archivo descargado."""
