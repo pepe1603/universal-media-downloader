@@ -30,6 +30,9 @@ ENV/
 # IDE
 .vscode/
 .idea/
+
+# Claude Code
+.claude/settings.local.json
 *.swp
 *.swo
 *~
