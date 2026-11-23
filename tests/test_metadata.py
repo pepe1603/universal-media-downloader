@@ -27,3 +27,39 @@ def test_embed_wav(console, wav_file):
     tags = WAVE(wav_file).tags
     assert str(tags["TIT2"]) == "Título ñ"
     assert str(tags["TPE1"]) == "Artista"
+
+
+import shutil
+import subprocess
+
+import pytest
+
+needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="requiere ffmpeg")
+
+
+def _encode(src: Path, dest: Path) -> Path:
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(src), str(dest)],
+        check=True, capture_output=True,
+    )
+    return dest
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("ext", ["mp3", "flac", "ogg", "m4a"])
+def test_embed_encoded_formats(console, wav_file, tmp_path, ext):
+    audio = _encode(wav_file, tmp_path / f"s.{ext}")
+    meta = AudioMetadata(title="Tít", artist="Art", album="Alb", date="2026", genre="Pop")
+    assert MetadataHandler(console).embed_metadata(audio, meta) is True
+
+
+@needs_ffmpeg
+def test_embed_mp3_with_cover(console, wav_file, tmp_path):
+    audio = _encode(wav_file, tmp_path / "s.mp3")
+    cover = tmp_path / "cover.jpg"
+    subprocess.run(
+        ["ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=red:s=16x16", "-frames:v", "1", str(cover)],
+        check=True, capture_output=True,
+    )
+    meta = AudioMetadata(title="T", cover_path=cover)
+    assert MetadataHandler(console).embed_metadata(audio, meta) is True

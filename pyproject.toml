@@ -9,3 +9,9 @@ select = ["E", "F", "W", "I", "B"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.coverage.run]
+source = ["src/core"]
+
+[tool.coverage.report]
+fail_under = 60
