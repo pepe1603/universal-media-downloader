@@ -3,17 +3,24 @@ Módulo de metadatos de audio.
 Incrusta carátulas e información ID3 en archivos de audio.
 """
 
+import logging
+import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
-from dataclasses import dataclass
-from datetime import datetime
 
+from mutagen import MutagenError
 from rich.console import Console
+
+logger = logging.getLogger(__name__)
+
+EMBED_ERRORS = (MutagenError, OSError, ValueError, KeyError, subprocess.SubprocessError)
 
 
 @dataclass
 class AudioMetadata:
     """Metadatos de un archivo de audio."""
+
     title: str
     artist: str = "Desconocido"
     album: str = "Single"
@@ -25,7 +32,7 @@ class AudioMetadata:
 class MetadataHandler:
     """Manejador de metadatos de audio."""
     
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(self, console: Optional[Console] = None) -> None:
         self.console = console or Console()
     
     def embed_metadata(
@@ -65,17 +72,16 @@ class MetadataHandler:
                 self.console.print(f"[yellow]⚠ Metadatos no soportados para {ext}[/yellow]")
                 return False
         
-        except Exception as e:
+        except EMBED_ERRORS as e:
+            logger.exception("Fallo al incrustar metadatos")
             self.console.print(f"[red]Error al incrustar metadatos: {e}[/red]")
-            import traceback
-            traceback.print_exc()
             return False
     
     def _embed_mp3(self, audio_path: Path, metadata: AudioMetadata) -> bool:
         """Incrustar metadatos en archivo MP3 usando mutagen."""
         try:
+            from mutagen.id3 import APIC, ID3, TALB, TCON, TDRC, TIT2, TPE1
             from mutagen.mp3 import MP3
-            from mutagen.id3 import ID3, TIT2, TPE1, TALB, TDRC, TCON, APIC
             
             self.console.print(f"[dim]  Procesando MP3: {audio_path.name}[/dim]")
             
@@ -84,7 +90,7 @@ class MetadataHandler:
             
             # Si no tiene tags, crearlos
             if audio.tags is None:
-                self.console.print(f"[dim]  Creando tags ID3 nuevos[/dim]")
+                self.console.print("[dim]  Creando tags ID3 nuevos[/dim]")
                 audio.add_tags()
             
             tags = audio.tags
@@ -133,14 +139,14 @@ class MetadataHandler:
                             desc="Cover",  # Descripción simple en Latin-1
                             data=img_data
                         ))
-                        self.console.print(f"[dim]  ✓ Carátula agregada al tag[/dim]")
+                        self.console.print("[dim]  ✓ Carátula agregada al tag[/dim]")
                 else:
                     self.console.print(f"[yellow]  ⚠ Carátula no encontrada en: {metadata.cover_path}[/yellow]")
             else:
-                self.console.print(f"[yellow]  ⚠ No se proporcionó ruta de carátula[/yellow]")
+                self.console.print("[yellow]  ⚠ No se proporcionó ruta de carátula[/yellow]")
             
             # Guardar cambios
-            self.console.print(f"[dim]  Guardando cambios...[/dim]")
+            self.console.print("[dim]  Guardando cambios...[/dim]")
             audio.save()
             
             # Verificar que se guardó correctamente
@@ -148,20 +154,19 @@ class MetadataHandler:
             if audio_check.tags:
                 apic_tags = [tag for tag in audio_check.tags.values() if hasattr(tag, 'FrameID') and tag.FrameID == 'APIC']
                 if apic_tags:
-                    self.console.print(f"[green]  ✓ Verificación: Carátula confirmada en el archivo[/green]")
+                    self.console.print("[green]  ✓ Verificación: Carátula confirmada en el archivo[/green]")
                     return True
             
-            self.console.print(f"[yellow]  ⚠ Advertencia: La carátula podría no haberse guardado[/yellow]")
+            self.console.print("[yellow]  ⚠ Advertencia: La carátula podría no haberse guardado[/yellow]")
             return True  # Aún así retornamos True porque los otros metadatos sí se guardaron
         
         except ImportError as e:
             self.console.print(f"[red]Error de importación: {e}[/red]")
             self.console.print("[yellow]⚠ Ejecuta: pip install mutagen[/yellow]")
             return False
-        except Exception as e:
+        except EMBED_ERRORS as e:
+            logger.exception("Fallo al incrustar metadatos")
             self.console.print(f"[red]Error en MP3: {e}[/red]")
-            import traceback
-            traceback.print_exc()
             return False
     
     def _embed_m4a(self, audio_path: Path, metadata: AudioMetadata) -> bool:
@@ -196,11 +201,12 @@ class MetadataHandler:
         except ImportError as e:
             self.console.print(f"[red]Error de importación: {e}[/red]")
             return False
-        except Exception as e:
+        except EMBED_ERRORS as e:
+            logger.exception("Fallo al incrustar metadatos")
             self.console.print(f"[red]Error en M4A: {e}[/red]")
             return False
 
-    def _prepare_cover_for_m4a(self, cover_path: Path):
+    def _prepare_cover_for_m4a(self, cover_path: Path) -> tuple[Optional[bytes], Optional[int]]:
         """
         Preparar carátula para incrustar en M4A.
 
@@ -209,6 +215,7 @@ class MetadataHandler:
         se convierten a JPEG con FFmpeg. Devuelve (None, None) si falla.
         """
         import subprocess
+
         from mutagen.mp4 import MP4Cover
 
         suffix = cover_path.suffix.lower()
@@ -242,9 +249,10 @@ class MetadataHandler:
                 if temp_jpeg.exists():
                     try:
                         temp_jpeg.unlink()
-                    except Exception:
-                        pass
-        except Exception as e:
+                    except OSError:
+                        logger.debug("No se pudo borrar %s", temp_jpeg)
+        except EMBED_ERRORS as e:
+            logger.exception("Fallo al incrustar metadatos")
             self.console.print(f"[yellow]  ⚠ No se pudo preparar la carátula para M4A: {e}[/yellow]")
 
         return None, None
@@ -285,7 +293,8 @@ class MetadataHandler:
         except ImportError as e:
             self.console.print(f"[red]Error de importación: {e}[/red]")
             return False
-        except Exception as e:
+        except EMBED_ERRORS as e:
+            logger.exception("Fallo al incrustar metadatos")
             self.console.print(f"[red]Error en FLAC: {e}[/red]")
             return False
 
@@ -293,8 +302,9 @@ class MetadataHandler:
         """Incrustar metadatos en archivo OGG (Vorbis comments) usando mutagen."""
         try:
             import base64
-            from mutagen.oggvorbis import OggVorbis
+
             from mutagen.flac import Picture
+            from mutagen.oggvorbis import OggVorbis
 
             audio = OggVorbis(audio_path)
 
@@ -333,15 +343,16 @@ class MetadataHandler:
         except ImportError as e:
             self.console.print(f"[red]Error de importación: {e}[/red]")
             return False
-        except Exception as e:
+        except EMBED_ERRORS as e:
+            logger.exception("Fallo al incrustar metadatos")
             self.console.print(f"[red]Error en OGG: {e}[/red]")
             return False
 
     def _embed_wav(self, audio_path: Path, metadata: AudioMetadata) -> bool:
         """Incrustar metadatos en archivo WAV (tags ID3) usando mutagen."""
         try:
+            from mutagen.id3 import APIC, ID3, TALB, TCON, TDRC, TIT2, TPE1
             from mutagen.wave import WAVE
-            from mutagen.id3 import ID3, TIT2, TPE1, TALB, TDRC, TCON, APIC
 
             audio = WAVE(audio_path)
 
@@ -385,6 +396,7 @@ class MetadataHandler:
         except ImportError as e:
             self.console.print(f"[red]Error de importación: {e}[/red]")
             return False
-        except Exception as e:
+        except EMBED_ERRORS as e:
+            logger.exception("Fallo al incrustar metadatos")
             self.console.print(f"[red]Error en WAV: {e}[/red]")
             return False
