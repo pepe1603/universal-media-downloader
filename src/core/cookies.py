@@ -3,16 +3,19 @@ Módulo de gestión de cookies para contenido privado.
 Soporta cookies desde archivo (cookies.txt) organizadas por plataforma.
 """
 
+import logging
 import re
 import shutil
-from pathlib import Path
-from typing import Optional, List
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+from typing import List, Optional
 
 from rich.console import Console
 
 from src.storage.database import Database
+
+logger = logging.getLogger(__name__)
 
 _PLATFORM_NAME_RE = re.compile(r"[a-z0-9_-]{1,32}")
 COOKIE_FILE_MODE = 0o600  # solo lectura/escritura para el propietario
@@ -20,6 +23,7 @@ COOKIE_FILE_MODE = 0o600  # solo lectura/escritura para el propietario
 
 class Browser(Enum):
     """Navegadores soportados para extracción de cookies."""
+
     CHROME = "chrome"
     FIREFOX = "firefox"
     EDGE = "edge"
@@ -31,6 +35,7 @@ class Browser(Enum):
 @dataclass
 class CookieValidation:
     """Resultado de validación de cookies."""
+
     valid: bool
     message: str
 
@@ -107,7 +112,7 @@ class CookieManager:
 
     PLATFORMS = ["youtube", "instagram", "facebook", "tiktok"]
 
-    def __init__(self, base_path: Path, console: Optional[Console] = None, database: Optional[Database] = None):
+    def __init__(self, base_path: Path, console: Optional[Console] = None, database: Optional[Database] = None) -> None:
         self.console = console or Console()
         self.database = database or Database()
         self.cookies_dir = base_path / "cookies"
@@ -158,7 +163,7 @@ class CookieManager:
 
         return {}
 
-    def is_active(self, platform: str = None) -> bool:
+    def is_active(self, platform: Optional[str] = None) -> bool:
         """
         Verificar si hay cookies configuradas.
 
@@ -201,7 +206,8 @@ class CookieManager:
                 pass  # Windows/FS sin soporte de permisos POSIX
             self.console.print(f"[green]✓[/green] Cookies para [bold]{platform}[/bold] configuradas: [dim]{dest_path}[/dim]")
             return True
-        except Exception as e:
+        except (OSError, shutil.Error) as e:
+            logger.error("No se pudo copiar el archivo de cookies a %s: %s", dest_path, e)
             self.console.print(f"[red]Error al copiar archivo: {e}[/red]")
             return False
 
@@ -247,10 +253,8 @@ class CookieManager:
                 self.console.print(f"[yellow]⚠ No se pudieron extraer cookies de {browser.value}[/yellow]")
                 return False
 
-        except yt_dlp.utils.DownloadError as e:
-            self._print_browser_cookie_error(e, browser)
-            return False
-        except Exception as e:
+        except (yt_dlp.utils.YoutubeDLError, OSError, ValueError, RuntimeError) as e:
+            logger.warning("Extracción de cookies desde %s falló: %s", browser.value, type(e).__name__)
             self._print_browser_cookie_error(e, browser)
             return False
 
@@ -270,7 +274,7 @@ class CookieManager:
         else:
             self.console.print(f"[red]Error al extraer cookies: {error}[/red]")
 
-    def clear(self, platform: str = None) -> bool:
+    def clear(self, platform: Optional[str] = None) -> bool:
         """
         Desactivar cookies.
 
@@ -346,7 +350,8 @@ class CookieManager:
                 message=f"Archivo válido con {valid_lines} cookies"
             )
 
-        except Exception as e:
+        except OSError as e:
+            logger.error("No se pudo leer el archivo de cookies: %s", e)
             return CookieValidation(valid=False, message=f"Error al leer el archivo: {e}")
 
     def test_cookies(self, platform: str) -> CookieValidation:
@@ -357,9 +362,8 @@ class CookieManager:
         si el servidor redirige al login o devuelve una página de inicio de
         sesión, lo que indica cookies inválidas o expiradas.
         """
-        from http.cookiejar import MozillaCookieJar
-
         import urllib.request
+        from http.cookiejar import MozillaCookieJar
 
         if not self.has_cookies(platform):
             return CookieValidation(valid=False, message=f"No hay cookies configuradas para {platform}")
@@ -380,7 +384,7 @@ class CookieManager:
         jar = MozillaCookieJar(str(cookie_path))
         try:
             jar.load(ignore_discard=True, ignore_expires=True)
-        except Exception as e:
+        except OSError as e:
             return CookieValidation(valid=False, message=f"No se pudo leer el archivo de cookies ({e}). Re-exporta tus cookies.")
 
         opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
@@ -397,7 +401,8 @@ class CookieManager:
             if e.code in (401, 403):
                 return CookieValidation(valid=False, message=f"Cookies de {platform} inválidas o expiradas (HTTP {e.code}). Re-exporta tus cookies.")
             return CookieValidation(valid=False, message=f"Error de acceso: HTTP {e.code}")
-        except Exception as e:
+        except (OSError, ValueError) as e:
+            logger.warning("Prueba de cookies fallida para %s: %s", platform, type(e).__name__)
             return CookieValidation(valid=False, message=f"Error de acceso: {e}")
 
         # Detectar redirección a una URL de inicio de sesión
