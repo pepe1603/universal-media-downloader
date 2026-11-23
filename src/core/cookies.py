@@ -3,6 +3,7 @@ Módulo de gestión de cookies para contenido privado.
 Soporta cookies desde archivo (cookies.txt) organizadas por plataforma.
 """
 
+import re
 import shutil
 from pathlib import Path
 from typing import Optional, List
@@ -12,6 +13,9 @@ from enum import Enum
 from rich.console import Console
 
 from src.storage.database import Database
+
+_PLATFORM_NAME_RE = re.compile(r"[a-z0-9_-]{1,32}")
+COOKIE_FILE_MODE = 0o600  # solo lectura/escritura para el propietario
 
 
 class Browser(Enum):
@@ -119,7 +123,9 @@ class CookieManager:
         Returns:
             Path al archivo de cookies
         """
-        platform_lower = platform.lower()
+        platform_lower = platform.strip().lower()
+        if not _PLATFORM_NAME_RE.fullmatch(platform_lower):
+            raise ValueError(f"Nombre de plataforma inválido: {platform!r}")
         return self.cookies_dir / f"{platform_lower}.txt"
 
     def has_cookies(self, platform: str) -> bool:
@@ -189,6 +195,10 @@ class CookieManager:
 
         try:
             shutil.copy2(cookie_file_path, dest_path)
+            try:
+                dest_path.chmod(COOKIE_FILE_MODE)
+            except OSError:
+                pass  # Windows/FS sin soporte de permisos POSIX
             self.console.print(f"[green]✓[/green] Cookies para [bold]{platform}[/bold] configuradas: [dim]{dest_path}[/dim]")
             return True
         except Exception as e:
