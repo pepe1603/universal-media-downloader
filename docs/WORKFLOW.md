@@ -76,6 +76,14 @@ flowchart LR
 - **Tests:** `python -m pytest tests` (si existe suite).
 - Revisar que no quedaron archivos sin trackear de más (`git status`).
 
+## 4.1 Integración continua
+
+`.github/workflows/ci.yml` ejecuta en cada push/PR: `ruff check`, `py_compile` y `pytest --cov` (umbral 60% en `src/core`) sobre Linux, Windows y macOS (Python 3.12 y 3.13). Debe estar en verde antes de integrar a `develop`.
+
+## 4.2 Cambios globales
+
+Los cambios que no son bugs de entorno (seguridad, tests, calidad, empaquetado, CI, docs) se trabajan directamente en `develop`, con commits pequeños.
+
 ## 5. Convención de commits
 
 | Tipo    | Uso                                   | Ejemplo |
@@ -84,6 +92,9 @@ flowchart LR
 | `docs`  | Documentación                         | `docs(BUGS): marcar BUG-02 como resuelto` |
 | `feat`  | Nueva funcionalidad                   | `feat: ...` |
 | `chore` | Tareas de mantenimiento               | `chore: ...` |
+| `test`  | Tests                                 | `test(core): ...` |
+| `refactor` | Refactor sin cambio funcional      | `refactor(cookies): ...` |
+| `ci`    | Integración continua                  | `ci: ...` |
 
 Reglas de mensaje:
 - Formato: `tipo(alcance): descripción` en minúsculas.
